@@ -24,7 +24,7 @@ jobs:
             const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
             const page=await browser.newPage({viewport:{width:1600,height:1000}});
             let started=Date.now();let firstMapImageMs=null;page.on('response',r=>{if(r.url().includes('/map-preview/')&&r.status()===200&&firstMapImageMs===null)firstMapImageMs=Date.now()-started;});
-            let preparedRequests=0,legacyRequests=0;page.on('request',r=>{if(r.url().includes('/korea-data/prepared/'))preparedRequests++;if(/\/korea-data\/(tiles|catalog)\//.test(r.url()))legacyRequests++;});
+            let preparedRequests=0,legacyRequests=0;page.context().on('request',r=>{if(r.url().includes('/korea-data/prepared/'))preparedRequests++;if(/\/korea-data\/(tiles|catalog)\//.test(r.url()))legacyRequests++;});
             const errors=[];page.on('pageerror',e=>errors.push(e.message));
             await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix8',{waitUntil:'networkidle',timeout:120000});
             for(let retry=0;retry<15;retry++){if(await page.evaluate(()=>document.querySelector('script[type="module"]').src.includes('fix8')))break;await page.waitForTimeout(5000);started=Date.now();firstMapImageMs=null;await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix8-'+retry,{waitUntil:'networkidle'});}
@@ -53,10 +53,10 @@ jobs:
             if(errors.length)throw Error(errors.join('\n'));
             const cached=await page.evaluate(async()=>{const cache=await caches.open('conta-korea-4e05284bc04d8ff5');return (await cache.keys()).length;});
             if(cached<3)throw Error('Regional persistent cache missing');
-            if(preparedRequests<3||legacyRequests!==0)throw Error('Preprocessed data path not used');
-            const result={preparedRequests,legacyRequests,zoomedSmallRegion:await page.locator('#area').innerText(),overlapOptionApplied:true,firstMapImageMs,fullMapMs,cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:bytes.length,rhinoObjects,rhinoLayers};
-            await page.route('**/korea-data/prepared/**',route=>route.abort());
-            await page.route('**/terrarium/**',route=>route.abort());
+            const cachedPreparedFiles=await page.evaluate(async()=>{const cache=await caches.open('conta-korea-4e05284bc04d8ff5');const keys=await cache.keys();return keys.filter(r=>r.url.includes('/prepared/v2/')).length;});if(cachedPreparedFiles<3||legacyRequests!==0)throw Error('Preprocessed data path not used');
+            const result={preparedRequests,legacyRequests,cachedPreparedFiles,zoomedSmallRegion:await page.locator('#area').innerText(),overlapOptionApplied:true,firstMapImageMs,fullMapMs,cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:bytes.length,rhinoObjects,rhinoLayers};
+            await page.context().route('**/korea-data/prepared/**',route=>route.abort());
+            await page.context().route('**/terrarium/**',route=>route.abort());
             await page.reload({waitUntil:'networkidle'});
             await page.waitForFunction(()=>document.querySelector('.map-note')?.textContent.includes('전국 한국 OSM'),null,{timeout:30000});
             for(let i=0;i<3;i++){await page.locator('.leaflet-control-zoom-in').click();await page.waitForTimeout(150);}
