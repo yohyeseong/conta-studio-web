@@ -1,5 +1,6 @@
-import {get} from './korea-data.js?v=packed2';
-const ROOT='city-map/20261002/',VERSION='895aa1a4fe0bd79c-city1';
+const BASE=new URL('./data/city-map/',import.meta.url).href;
+const get=async(path,info)=>{const url=BASE+path,disk=await caches.open('conta-city1'),stored=await disk.match(url),response=stored||await fetch(url,{signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error('도시 지도 수신 실패');const bytes=await response.arrayBuffer();if(info){const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');if(bytes.byteLength!==info.bytes||sha!==info.sha256){await disk.delete(url);throw Error('도시 지도 검증 실패');}}if(!stored)await disk.put(url,new Response(bytes));if(!info)return JSON.parse(new TextDecoder().decode(bytes));const raw=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();if(raw.byteLength!==info.rawBytes)throw Error('도시 지도 크기 오류');return JSON.parse(new TextDecoder().decode(raw));};
+const ROOT='',VERSION='895aa1a4fe0bd79c-city1';
 export async function cityMap(bounds){
  const index=await get(ROOT+'index.json');if(index.version!==VERSION||!index.safeOnly||!index.complete||index.step!==.1)throw Error('도시 지도 목록 검증 실패');
  const [w,s,e,n]=bounds,x0=Math.floor(w/.1),x1=Math.floor(e/.1),y0=Math.floor(s/.1),y1=Math.floor(n/.1),jobs=[];

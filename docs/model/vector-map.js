@@ -1,6 +1,6 @@
-import {packedMap,world} from './packed-map.js?v=instant3';
+import {packedMap,world} from './packed-map.js?v=local4';
 import {loadMap,inKorea} from './korea-data.js?v=packed2';
-import {cityMap} from './city-map.js?v=search-city1';
+import {cityMap} from './city-map.js?v=local4';
 const styles={1:['#a7abb1',1,'#d5d6d9'],2:['#e6b77f',5,'#d0d8e2'],3:['#e6b77f',2,'#d0d8e2'],4:['#80858b',2],5:['#8dc1dc',1,'#8dc1dc'],6:['#b2cba8',.5,'#d5e5cc'],7:['#d3bd9e',.5,'#e8dbc7']};
 const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3];
 function fromGeo(geo,bounds){const records=[];for(const f of geo.features){const t=f.properties||{},g=f.geometry;if(!g)continue;const kind=t.railway?4:t['area:highway']?7:t.highway?['primary','secondary','trunk','motorway'].includes(t.highway)?2:3:t.waterway||t.natural==='water'?5:t.building||t['building:part']?1:t.landuse||t.leisure||['wood','scrub','grassland'].includes(t.natural)?6:0,mode=g.type.endsWith('Polygon')?3:g.type.endsWith('LineString')?2:0,list=g.type==='LineString'?[g.coordinates]:['Polygon','MultiLineString'].includes(g.type)?g.coordinates:g.type==='MultiPolygon'?g.coordinates.flat():[],b=f.bbox||MilitaryPolicy.box(g);records.push({kind,mode,place:!!t.place,name:t['name:ko']||t.name,anchor:b?world((b[0]+b[2])/2,(b[1]+b[3])/2):null,worldBounds:b?[...world(b[0],b[3]),...world(b[2],b[1])]:null,paths:list.map(r=>({points:Float64Array.from(r.flatMap(c=>world(...c))),edge:new Uint8Array(r.length)}))});}return {records,bounds,detail:'world'};}

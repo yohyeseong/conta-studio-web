@@ -18,6 +18,32 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: 81e2224a3f860ca60cb07565f1979c221cc1fb26
+          path: verified-map-data
+          sparse-checkout: |
+            map-packed/20261002
+            city-map/20261002
+      - name: Serve verified vector data beside the website
+        run: |
+          python - <<'PY'
+          import pathlib,json,shutil,struct
+          source=pathlib.Path('verified-map-data');target=pathlib.Path('docs/model/data');target.mkdir(parents=True,exist_ok=True)
+          packed=source/'map-packed/20261002';city=source/'city-map/20261002'
+          p=json.loads((packed/'index.json').read_text());c=json.loads((city/'index.json').read_text())
+          assert p['complete'] and p['safeOnly'] and p['version']=='895aa1a4fe0bd79c-packed2' and p['parents']==107958
+          assert c['complete'] and c['safeOnly'] and c['version']=='895aa1a4fe0bd79c-city1'
+          for lod in ('low','detail'):
+              files=list((packed/lod).glob('*.bin'));assert len(files)==107958
+              for f in files:
+                  with f.open('rb') as stream:header=stream.read(84)
+                  magic,token,x,y,flags,*offsets=struct.unpack('<4sIHHI17I',header)
+                  assert magic==b'CMB2' and token==0x895aa1a4 and flags==1 and f.stem==f'{x}_{y}' and offsets[0]==84 and offsets==sorted(offsets) and offsets[-1]==f.stat().st_size
+          shutil.copytree(packed,target/'map-packed');shutil.copytree(city,target/'city-map')
+          total=sum(f.stat().st_size for f in pathlib.Path('docs').rglob('*') if f.is_file());assert total<900*1024*1024,total
+          print(f'Verified same-origin map payload: {total} bytes')
+          PY
       - uses: actions/configure-pages@v5
         with:
           enablement: true
