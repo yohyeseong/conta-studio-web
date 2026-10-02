@@ -25,7 +25,8 @@ export default {
   const key=env.VWORLD_API_KEY.trim();
   const params=new URLSearchParams({service:'data',version:'2.0',request:'GetFeature',format:'json',size:'1000',page:String(page),data:DATASETS[kind],geometry:'true',attribute:'true',crs:'EPSG:4326',geomFilter:'BOX('+bounds.join(',')+')',domain:allowed,key});
   try{
-   const upstream=await fetch('https://api.vworld.kr/req/data?'+params,{headers:{Referer:allowed+'/conta-studio-web/model/','User-Agent':UA,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+   const direct='https://api.vworld.kr/req/data?'+params,urls=[direct,'https://map.vworld.kr/proxy.do?url='+encodeURIComponent(direct)];
+   let upstream;for(const endpoint of urls){try{upstream=await fetch(endpoint,{headers:{Referer:allowed+'/conta-studio-web/model/','User-Agent':UA,Accept:'application/json'},redirect:'manual',signal:AbortSignal.timeout(12000)});if(upstream.ok)break;}catch(error){if(endpoint===urls[1])throw error;}}
    if(!upstream.ok)return fail(502,'Data provider HTTP '+upstream.status);
    const buffer=await upstream.arrayBuffer();if(buffer.byteLength>12000000)return fail(502,'Data response too large');
    let response;try{response=JSON.parse(new TextDecoder().decode(buffer)).response;}catch{return fail(502,'Invalid data response');}
