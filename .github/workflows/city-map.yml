@@ -38,3 +38,4 @@ jobs:
           git add city-map/20261002
           git commit -m 'Publish verified city overview vectors'
           git push origin HEAD:korea-data
+# Source geometry validation enabled.
