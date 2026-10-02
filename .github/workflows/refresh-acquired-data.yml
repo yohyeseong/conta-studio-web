@@ -23,7 +23,7 @@ jobs:
       - name: Download and verify acquired source
         run: |
           curl --fail --location --retry 3 https://tiles.osm.kr/download/south-korea-latest-non-military.osm.pbf -o /tmp/latest.osm.pbf
-          echo '105fd7788ae8b8c3b440725bac66eca0ee42b27f8bf00a37b6f5384885d1f0b3  /tmp/latest.osm.pbf' | sha256sum --check
+          echo '6302e80c2b565966e15bbf901d7837337c796a54b6e5b9d6c64aa18aa660ab5c  /tmp/latest.osm.pbf' | sha256sum --check
           python - <<'PY'
           import pathlib,urllib.request,hashlib
           data=urllib.request.urlopen('https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.js',timeout=60).read()
@@ -37,9 +37,9 @@ jobs:
           import sys,pathlib,json
           sys.path.insert(0,'tools/refresh-korea')
           from korea_safe_index import build
-          metadata=build('/tmp/latest.osm.pbf','/tmp/latest-safe','2026-10-01',lambda s:print(s,flush=True))
-          assert metadata['safe_only'] and metadata['sha256']=='105fd7788ae8b8c3b440725bac66eca0ee42b27f8bf00a37b6f5384885d1f0b3'
-          pathlib.Path('/tmp/source-report.json').write_text(json.dumps({'counts':metadata['counts'],'sourceDate':'2026-10-01','sha256':metadata['sha256']}))
+          metadata=build('/tmp/latest.osm.pbf','/tmp/latest-safe','2026-10-02',lambda s:print(s,flush=True))
+          assert metadata['safe_only'] and metadata['sha256']=='6302e80c2b565966e15bbf901d7837337c796a54b6e5b9d6c64aa18aa660ab5c'
+          pathlib.Path('/tmp/source-report.json').write_text(json.dumps({'counts':metadata['counts'],'sourceDate':'2026-10-02','sha256':metadata['sha256']}))
           PY
       - name: Create regional source data
         run: |
@@ -54,7 +54,7 @@ jobs:
           python - <<'PY'
           import json,pathlib,gzip,hashlib
           root=pathlib.Path('/tmp/latest-prepared');index=json.loads((root/'index.json').read_text())
-          assert index['sourceDate']=='2026-10-01' and index['safeOnly'] and len(index['columns'])>150
+          assert index['sourceDate']=='2026-10-02' and index['safeOnly'] and len(index['columns'])>150
           count=0
           for c in index['columns']:
               cat=json.loads((root/'map-catalog'/f'{c}.json').read_text())
@@ -75,16 +75,16 @@ jobs:
           git config remote.origin.partialclonefilter blob:none
           git fetch --filter=blob:none --depth=1 origin korea-data
           git sparse-checkout init --cone
-          git sparse-checkout set prepared/20261001
+          git sparse-checkout set prepared/20261002
           git checkout -B korea-data FETCH_HEAD
-          mkdir -p prepared/20261001
-          cp -a /tmp/latest-prepared/. prepared/20261001/
+          mkdir -p prepared/20261002
+          cp -a /tmp/latest-prepared/. prepared/20261002/
           git config pack.window 0
           git config pack.threads 2
           git config core.compression 1
           python - <<'PY'
           import pathlib,subprocess
-          root=pathlib.Path('prepared/20261001');manifest=root/'index.json'
+          root=pathlib.Path('prepared/20261002');manifest=root/'index.json'
           files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest)
           batch=[];size=0;number=0
           def publish(paths):
@@ -93,7 +93,7 @@ jobs:
               pathlib.Path('/tmp/edition-paths').write_bytes(b'\x00'.join(str(p).encode() for p in paths)+b'\x00')
               subprocess.run(['git','add','--pathspec-from-file=/tmp/edition-paths','--pathspec-file-nul'],check=True)
               if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
-              subprocess.run(['git','commit','-m',f'Publish acquired 20261001 geography batch {number}'],check=True)
+              subprocess.run(['git','commit','-m',f'Publish acquired 20261002 geography batch {number}'],check=True)
               subprocess.run(['git','push','origin','korea-data'],check=True)
               print('Published batch',number,len(paths),flush=True)
           for p in files:
