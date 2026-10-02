@@ -1,0 +1,46 @@
+name: Publish instant map previews
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/map-preview.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract verified preview images
+        run: |
+          curl --fail --location --retry 3 "https://github.com/yohyeseong/conta-studio-web/releases/download/v1.1.0-rc.23/ContaStudio-1.1.0-rc.23-Full-Korea.zip" -o /tmp/full.zip
+          echo "9fd734c9d3188c6688441a0d46cb3fadcc3bada5c8fbdd44bda6a4e95d2e4fd1  /tmp/full.zip" | sha256sum --check
+          python - <<'PY'
+          import zipfile,pathlib,re,struct
+          with zipfile.ZipFile('/tmp/full.zip') as z:z.extract('ContaStudio-1.1.0-rc.23-Setup.exe','/tmp')
+          root=pathlib.Path('/tmp/map-preview');count=0
+          with zipfile.ZipFile('/tmp/ContaStudio-1.1.0-rc.23-Setup.exe') as z:
+              for info in z.infolist():
+                  if not info.filename.startswith('ContaStudio/data/korea-map-preview/'):continue
+                  match=re.fullmatch(r'(14)-(\d+)-(\d+)\.png',pathlib.PurePosixPath(info.filename).name)
+                  if not match:continue
+                  data=z.read(info);assert data[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',data[16:24])==(256,256)
+                  zoom,x,y=match.groups();p=root/zoom/x/(y+'.png');p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data);count+=1
+          assert count==438;print('Verified preview images:',count)
+          PY
+      - name: Add previews without replacing national data
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set map-preview
+          git checkout -B korea-data FETCH_HEAD
+          mkdir -p map-preview
+          cp -a /tmp/map-preview/. map-preview/
+          git add map-preview
+          git diff --cached --quiet || git commit -m "Add 438 compact startup map previews"
+          git push origin korea-data
