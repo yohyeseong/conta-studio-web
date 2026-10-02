@@ -1,0 +1,75 @@
+name: Prepare small complete map regions
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/map-grid.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install shapely==2.1.2
+      - name: Read verified prepared sources
+        uses: actions/checkout@v4
+        with:
+          ref: korea-data
+          path: source-data
+          sparse-checkout: |
+            prepared/20261002/index.json
+            prepared/20261002/map-catalog
+            prepared/20261002/map/detail
+            supplemental/official-roads-20260914
+          sparse-checkout-cone-mode: false
+      - name: Preclip and combine map regions
+        run: python tools/build-map-grid.py source-data /tmp/map-grid --workers 2
+      - name: Publish complete map edition
+        working-directory: source-data
+        run: |
+          git config user.name 'Conta Studio deployment'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git sparse-checkout set --no-cone map-grid/20261002
+          mkdir -p map-grid/20261002
+          cp -a /tmp/map-grid/. map-grid/20261002/
+          git config pack.window 0
+          git config pack.threads 2
+          git config core.compression 1
+          python - <<'PY'
+          import pathlib,json,subprocess,gzip,hashlib
+          root=pathlib.Path('map-grid/20261002');manifest=root/'index.json';idx=json.loads(manifest.read_text());assert idx['complete'] and idx['tiles']>15000
+          count=0
+          for c in (root/'catalog').glob('*.json'):
+              cat=json.loads(c.read_text());assert cat['version']==idx['version']
+              for ident,info in cat['tiles'].items():
+                  b=(root/'tiles'/f'{ident}.json.gz').read_bytes();assert len(b)==info['bytes'] and hashlib.sha256(b).hexdigest()==info['sha256']
+                  t=json.loads(gzip.decompress(b));assert t['safeOnly'] and t['version']==idx['version'];count+=1
+          assert count==idx['tiles']
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest);batch=[];size=0;number=0
+          def publish(paths):
+              global number
+              number+=1;pathlib.Path('/tmp/map-paths').write_bytes(b'\0'.join(str(p).encode() for p in paths)+b'\0')
+              subprocess.run(['git','add','--pathspec-from-file=/tmp/map-paths','--pathspec-file-nul'],check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
+              subprocess.run(['git','commit','-m',f'Publish small map regions batch {number}'],check=True)
+              subprocess.run(['git','push','origin','HEAD:korea-data'],check=True)
+          for p in files:
+              length=p.stat().st_size
+              if batch and (size+length>100*1024*1024 or len(batch)>=10000):publish(batch);batch=[];size=0
+              batch.append(p);size+=length
+          if batch:publish(batch)
+          publish([manifest])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: map-grid-report
+          path: /tmp/map-grid/index.json
