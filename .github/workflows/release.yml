@@ -14,4 +14,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release view v1.1.0-rc.22 || gh release create v1.1.0-rc.22 --target main --title "Conta Studio 1.1.0 RC22" --notes "Windows installer ZIP. Extract the ZIP and run Setup.exe." --prerelease
+          gh release view v1.1.0-rc.23 || gh release create v1.1.0-rc.23 --target main --title "Conta Studio 1.1.0 RC23 - Full Korea OSM" --notes "Windows installer with nationwide South Korea OSM data (2026-09-18). Extract ZIP and run Setup.exe. Address search and uncached elevation require internet. Data: OpenStreetMap contributors, ODbL 1.0." --prerelease
