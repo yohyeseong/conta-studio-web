@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=fix9');
+importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2');
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
  try{return polygonClipping[name](...args);}catch(original){for(const scale of [1000,100]){try{return polygonClipping[name](...args.map(a=>rounded(a,scale)));}catch{}}throw original;}
