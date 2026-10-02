@@ -1,0 +1,82 @@
+name: Publish acquired elevation data
+on:
+  push:
+    branches: [main]
+    paths: ['tools/prepare-elevation.py', 'tools/acquired-elevation-manifest.json', 'tools/korea-boundary.json', '.github/workflows/acquired-elevation.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  elevation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy==2.5.3 Pillow==12.3.0 shapely==2.1.2
+      - name: Download exact acquired elevation source
+        run: |
+          python - <<'PY'
+          import pathlib,json,urllib.request,concurrent.futures,hashlib,time
+          root=pathlib.Path('/tmp/copernicus-source');root.mkdir()
+          manifest=json.loads(pathlib.Path('tools/acquired-elevation-manifest.json').read_text())
+          def get(tile):
+              p=root/tile['file']
+              for attempt in range(3):
+                  try:
+                      urllib.request.urlretrieve(tile['source_url'],p)
+                      assert p.stat().st_size==tile['bytes'] and hashlib.sha256(p.read_bytes()).hexdigest()==tile['sha256']
+                      print('Verified source',tile['file'],flush=True);return
+                  except Exception:
+                      if attempt==2:raise
+                      time.sleep(2)
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(get,manifest['tiles']))
+          (root/'manifest.json').write_text(json.dumps(manifest))
+          PY
+      - name: Prepare and validate bounded elevation tiles
+        run: python tools/prepare-elevation.py /tmp/copernicus-source tools/korea-boundary.json /tmp/elevation-prepared
+      - name: Publish ready elevation data
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set elevation/glo30-2021
+          git checkout -B korea-data FETCH_HEAD
+          mkdir -p elevation/glo30-2021
+          cp -a /tmp/elevation-prepared/. elevation/glo30-2021/
+          git config pack.window 0
+          git config pack.threads 2
+          git config core.compression 1
+          python - <<'PY'
+          import pathlib,subprocess
+          root=pathlib.Path('elevation/glo30-2021');manifest=root/'index.json';files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest)
+          batch=[];size=0;number=0
+          def publish(paths):
+              global number
+              number+=1
+              pathlib.Path('/tmp/elevation-paths').write_bytes(b'\x00'.join(str(p).encode() for p in paths)+b'\x00')
+              subprocess.run(['git','add','--pathspec-from-file=/tmp/elevation-paths','--pathspec-file-nul'],check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
+              subprocess.run(['git','commit','-m',f'Publish acquired elevation batch {number}'],check=True)
+              subprocess.run(['git','push','origin','korea-data'],check=True)
+          for p in files:
+              length=p.stat().st_size
+              if batch and size+length>100*1024*1024:
+                  publish(batch);batch=[];size=0
+              batch.append(p);size+=length
+          if batch:publish(batch)
+          publish([manifest])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acquired-elevation-report
+          path: /tmp/elevation-prepared/index.json
