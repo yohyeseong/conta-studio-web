@@ -1,5 +1,7 @@
 import pathlib,json,gzip,hashlib,sys,collections
 from shapely.geometry import shape,mapping,box
+from shapely import make_valid
+from shapely.ops import unary_union
 root=pathlib.Path(sys.argv[1]);out=pathlib.Path(sys.argv[2]);(out/'tiles').mkdir(parents=True,exist_ok=True)
 version='895aa1a4fe0bd79c-city1';groups=collections.defaultdict(list)
 for cp in sorted((root/'map-catalog').glob('*.json')):
@@ -17,7 +19,12 @@ for (x,y),jobs in sorted(groups.items()):
             t=f['properties'];fid=f['id']
             if fid in features or t.get('building') or t.get('building:part'):continue
             if not (t.get('highway') in roads or t.get('railway') in ('rail','subway','light_rail') or t.get('waterway') in ('river','canal') or t.get('natural') in ('water','wood') or t.get('landuse') in ('forest','grass','recreation_ground') or t.get('leisure')=='park' or t.get('place')):continue
-            g=shape(f['geometry']).intersection(region)
+            g=shape(f['geometry'])
+            if not g.is_valid:g=make_valid(g)
+            g=g.intersection(region)
+            if g.geom_type=='GeometryCollection':
+                parts=[p for p in g.geoms if p.geom_type.endswith(('Polygon','LineString','Point'))]
+                g=unary_union(parts) if parts else g
             if g.is_empty:continue
             if g.geom_type.endswith('Polygon') and g.area<.000002:continue
             g=g.simplify(.00012,preserve_topology=True)
