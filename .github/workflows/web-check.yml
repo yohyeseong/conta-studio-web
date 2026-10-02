@@ -33,18 +33,19 @@ jobs:
             const fullMapMs=Date.now()-started;if(firstMapImageMs===null)throw Error('Startup map preview missing');
             await page.setViewportSize({width:1920,height:1080});await page.waitForTimeout(500);
             const aligned=await page.locator('.overlap-toggle').evaluate(el=>{const a=el.querySelector('input').getBoundingClientRect(),b=el.querySelector('span').getBoundingClientRect();return a.right<b.left&&Math.abs(a.top-b.top)<5;});if(!aligned)throw Error('Checkbox layout incorrect');
-            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15,{animate:false});});
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15,{animate:false,reset:true});});
             await page.waitForFunction(async()=>{const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return s.ready&&s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth()&&s.buildings>50&&s.minorRoads>50;},null,{timeout:120000});
+            const mapPosition=await page.evaluate(async()=>{const m=await window.contaMapReady;return {center:m.getCenter(),zoom:m.getZoom()};});if(Math.abs(mapPosition.center.lat-37.545)>.001||mapPosition.zoom!==15)throw Error('Wrong map test position '+JSON.stringify(mapPosition));
             const detailedMap=await page.evaluate(async()=>({...((await window.contaMapReady).contaMapState)}));
             await page.screenshot({path:'map-detail.png'});
             await page.evaluate(()=>{window.mapBlankFrames=0;window.monitorMap=true;const tick=()=>{if(!window.monitorMap)return;const panes=[...document.querySelectorAll('.conta-map-content')];if(!panes.some(p=>getComputedStyle(p).opacity==='1'&&p.querySelector('canvas')))window.mapBlankFrames++;requestAnimationFrame(tick);};tick();});
-            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([35.1796,129.0756],16,{animate:false});});
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([35.1796,129.0756],16,{animate:false,reset:true});});
             await page.waitForTimeout(300);
-            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15,{animate:false});});
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15,{animate:false,reset:true});});
             await page.waitForTimeout(8000);
             const stable=await page.evaluate(async()=>{window.monitorMap=false;const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return {blankFrames:window.mapBlankFrames,previewActive:s.previewActive,correctBounds:s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth()};});
             if(stable.blankFrames||stable.previewActive||!stable.correctBounds)throw Error('Unstable map replacement: '+JSON.stringify(stable));
-            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.5665,126.978],16,{animate:false});});
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.5665,126.978],16,{animate:false,reset:true});});
             await page.waitForFunction(async()=>{const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth();},null,{timeout:120000});
             const map=await page.locator('#map').boundingBox();
             for(let i=0;i<3;i++){await page.locator('.leaflet-control-zoom-in').click();await page.waitForTimeout(350);}
