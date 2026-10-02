@@ -1,0 +1,86 @@
+name: Publish acquired official road data
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/acquired-official-roads.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  roads:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Receive screened official road data
+        run: |
+          curl --fail --location --retry 3 --max-time 600 'https://term-quantum-wright-display.trycloudflare.com/roads-safe.tar.gz' -o /tmp/official-roads-safe.tar.gz
+          echo '9956426f1bce3d4e56144bf5d2a6464cc22526d4dfe93805772e01f63151cf77  /tmp/official-roads-safe.tar.gz' | sha256sum --check
+          python - <<'PY'
+          import pathlib,tarfile,json,gzip,hashlib
+          root=pathlib.Path('/tmp/official-roads');root.mkdir()
+          with tarfile.open('/tmp/official-roads-safe.tar.gz','r:gz') as archive:
+              for member in archive.getmembers():
+                  rel=pathlib.PurePosixPath(member.name)
+                  assert not rel.is_absolute() and '..' not in rel.parts and member.isfile()
+                  assert member.name=='index.json' or (rel.parts[0] in ('tiles','catalog') and member.name.endswith(('.json','.json.gz')))
+                  target=root.joinpath(*rel.parts);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(archive.extractfile(member).read())
+          index=json.loads((root/'index.json').read_text())
+          assert index['schema']==1 and index['version']=='official-roads-20260914-safe-v1' and index['safeOnly'] and index['features']==1560428 and index['tiles']==4284 and not index['widthKnown']
+          count=0
+          for column in index['columns']:
+              catalog=json.loads((root/'catalog'/f'{column}.json').read_text())
+              assert catalog['version']==index['version']
+              for ident,info in catalog['tiles'].items():
+                  data=(root/'tiles'/f'{ident}.json.gz').read_bytes()
+                  assert len(data)==info['bytes'] and hashlib.sha256(data).hexdigest()==info['sha256']
+                  raw=gzip.decompress(data);assert len(raw)==info['rawBytes']
+                  tile=json.loads(raw);assert tile['safeOnly'] and tile['version']==index['version']
+                  assert all(f['geometry']['type']=='LineString' for f in tile['features'])
+                  count+=1
+          assert count==4284
+          print('OFFICIAL_ROADS_VERIFIED',index['features'],count)
+          PY
+      - name: Publish official roads preserving other sources
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set supplemental/official-roads-20260914
+          git checkout -B korea-data FETCH_HEAD
+          mkdir -p supplemental/official-roads-20260914
+          cp -a /tmp/official-roads/. supplemental/official-roads-20260914/
+          git config pack.window 0
+          git config pack.threads 2
+          git config core.compression 1
+          python - <<'PY'
+          import pathlib,subprocess
+          root=pathlib.Path('supplemental/official-roads-20260914');manifest=root/'index.json';files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest)
+          batch=[];size=0;number=0
+          def publish(paths):
+              global number
+              number+=1
+              pathlib.Path('/tmp/roads-paths').write_bytes(b'\x00'.join(str(p).encode() for p in paths)+b'\x00')
+              subprocess.run(['git','add','--pathspec-from-file=/tmp/roads-paths','--pathspec-file-nul'],check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
+              subprocess.run(['git','commit','-m',f'Publish screened official road batch {number}'],check=True)
+              subprocess.run(['git','push','origin','korea-data'],check=True)
+          for p in files:
+              length=p.stat().st_size
+              if batch and size+length>100*1024*1024:
+                  publish(batch);batch=[];size=0
+              batch.append(p);size+=length
+          if batch:publish(batch)
+          publish([manifest])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: official-road-report
+          path: /tmp/official-roads/index.json
