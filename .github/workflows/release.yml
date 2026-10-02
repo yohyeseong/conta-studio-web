@@ -9,15 +9,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Download and verify distribution
-        run: |
-          curl --fail --location --retry 3 "https://drive.usercontent.google.com/download?id=1fkdYI5bTbpH1gTWEaqZEfxUlNKFlp0EU&export=download&confirm=t" -o ContaStudio-1.1.0-rc.22-Distribution.zip
-          echo "f025cbb1a0cee00c5834668e6521743f20b74303294cf4ea1173fbc6edda5a24  ContaStudio-1.1.0-rc.22-Distribution.zip" | sha256sum --check
-          unzip -t ContaStudio-1.1.0-rc.22-Distribution.zip
-      - name: Publish release asset
+      - name: Prepare distribution release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           gh release view v1.1.0-rc.22 || gh release create v1.1.0-rc.22 --target main --title "Conta Studio 1.1.0 RC22" --notes "Windows installer ZIP. Extract the ZIP and run Setup.exe." --prerelease
-          gh release upload v1.1.0-rc.22 ContaStudio-1.1.0-rc.22-Distribution.zip --clobber
