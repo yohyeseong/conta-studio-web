@@ -1,0 +1,61 @@
+name: Prepare nationwide web geometry
+on:
+  push:
+    branches: [main]
+    paths: ['tools/prepare-korea.cjs', '.github/workflows/prepared-data.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract verified national source
+        run: |
+          curl --fail --location --retry 3 "https://github.com/yohyeseong/conta-studio-web/releases/download/v1.1.0-rc.23/ContaStudio-1.1.0-rc.23-Full-Korea.zip" -o /tmp/full.zip
+          echo "9fd734c9d3188c6688441a0d46cb3fadcc3bada5c8fbdd44bda6a4e95d2e4fd1  /tmp/full.zip" | sha256sum --check
+          python - <<'PY'
+          import zipfile,pathlib,urllib.request,hashlib
+          with zipfile.ZipFile('/tmp/full.zip') as z:z.extract('ContaStudio-1.1.0-rc.23-Setup.exe','/tmp')
+          with zipfile.ZipFile('/tmp/ContaStudio-1.1.0-rc.23-Setup.exe') as z:
+              for f in z.infolist():
+                  prefix='ContaStudio/data/korea-tiles/'
+                  if not f.filename.startswith(prefix) or f.is_dir():continue
+                  rel=pathlib.PurePosixPath(f.filename[len(prefix):])
+                  assert '..' not in rel.parts
+                  p=pathlib.Path('/tmp/korea-source').joinpath(*rel.parts);p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(z.read(f))
+          data=urllib.request.urlopen('https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.js',timeout=60).read()
+          candidates=[data,data.replace(b'\r\n',b'\n'),data.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')]
+          selected=next(d for d in candidates if hashlib.sha256(d).hexdigest()=='663bb5bbae47d5d12bff9cf1c87b8f973e85fab4b1f83453810aae99add54592')
+          p=pathlib.Path('docs/model/vendor/osmtogeojson.js');p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(selected)
+          pathlib.Path('/tmp/full.zip').unlink();pathlib.Path('/tmp/ContaStudio-1.1.0-rc.23-Setup.exe').unlink()
+          PY
+      - name: Prepare separate map and model tiles
+        env:
+          CONTA_PARALLEL: '2'
+        run: node tools/prepare-korea.cjs /tmp/korea-source /tmp/korea-prepared docs/model
+      - name: Publish prepared data preserving original source
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set prepared
+          git checkout -B korea-data FETCH_HEAD
+          mkdir -p prepared/v1
+          cp -a /tmp/korea-prepared/. prepared/v1/
+          git add prepared
+          git diff --cached --quiet || git commit -m "Precompute nationwide map and model geometry for fast browser loading"
+          git push origin korea-data
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prepared-data-report
+          path: /tmp/korea-prepared/build-report*.json
