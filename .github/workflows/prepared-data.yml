@@ -49,11 +49,33 @@ jobs:
           git sparse-checkout init --cone
           git sparse-checkout set prepared
           git checkout -B korea-data FETCH_HEAD
-          mkdir -p prepared/v1
-          cp -a /tmp/korea-prepared/. prepared/v1/
-          git add prepared
-          git diff --cached --quiet || git commit -m "Precompute nationwide map and model geometry for fast browser loading"
-          git push origin korea-data
+          mkdir -p prepared/v2
+          cp -a /tmp/korea-prepared/. prepared/v2/
+          git config pack.window 0
+          git config pack.threads 2
+          git config core.compression 1
+          python - <<'PY'
+          import pathlib,subprocess
+          root=pathlib.Path('prepared/v2');manifest=root/'index.json'
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest)
+          batch=[];size=0;number=0
+          def publish(paths):
+              global number
+              number+=1
+              pathlib.Path('/tmp/prepared-paths').write_bytes(b'\x00'.join(str(p).encode() for p in paths)+b'\x00')
+              subprocess.run(['git','add','--pathspec-from-file=/tmp/prepared-paths','--pathspec-file-nul'],check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
+              subprocess.run(['git','commit','-m',f'Publish prepared geography batch {number}'],check=True)
+              subprocess.run(['git','push','origin','korea-data'],check=True)
+              print('Published batch',number,'files',len(paths),flush=True)
+          for p in files:
+              length=p.stat().st_size
+              if batch and (size+length>128*1024*1024 or len(batch)>=10000):
+                  publish(batch);batch=[];size=0
+              batch.append(p);size+=length
+          if batch:publish(batch)
+          publish([manifest])
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

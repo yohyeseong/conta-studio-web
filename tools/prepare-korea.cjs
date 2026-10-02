@@ -1,6 +1,6 @@
 const fs=require('fs'),path=require('path'),zlib=require('zlib'),crypto=require('crypto'),vm=require('vm');
 const source=path.resolve(process.argv[2]||'outputs/ContaStudio-1.1.0-dev/data/korea-tiles'),dest=path.resolve(process.argv[3]||'work/prepared-korea'),model=path.resolve(process.argv[4]||'work/github-pages-ready/docs/model');
-const sourceIndex=JSON.parse(fs.readFileSync(path.join(source,'index.json'))),version=sourceIndex.version+'-prepared1';
+const sourceIndex=JSON.parse(fs.readFileSync(path.join(source,'index.json'))),version=sourceIndex.version+'-prepared2';
 const ctx=vm.createContext({console});ctx.self=ctx;vm.runInContext(fs.readFileSync(path.join(model,'vendor/osmtogeojson.js'),'utf8'),ctx);vm.runInContext(fs.readFileSync(path.join(model,'military-policy.js'),'utf8'),ctx);
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),allowed=['building','building:part','height','building:levels','highway','area:highway','width','lanes','landuse','leisure','natural','waterway','railway','place','name','name:ko'];
 const relevant=t=>t.building||t['building:part']||t.highway||t['area:highway']||t.waterway||t.natural==='water'||t.railway||['grass','forest','meadow','orchard'].includes(t.landuse)||['wood','scrub','grassland'].includes(t.natural)||['park','garden','pitch'].includes(t.leisure);
@@ -13,15 +13,20 @@ if(process.env.CONTA_PARALLEL==='2'){
  return;
 }
 const columns=process.env.CONTA_COLUMNS?process.env.CONTA_COLUMNS.split(','):sourceIndex.columns;let tiles=0,modelTiles=0,mapBytes=0,modelBytes=0,rawBytes=0;const started=Date.now();
-for(const column of columns){const input=JSON.parse(fs.readFileSync(path.join(source,'catalog',column+'.json'))),maps={},models={};
+for(const column of columns){const input=JSON.parse(fs.readFileSync(path.join(source,'catalog',column+'.json'))),maps={},models={},modelBuckets={};
  for(const [id,info] of Object.entries(input.tiles)){const bytes=fs.readFileSync(path.join(source,'tiles',id+'.json.gz'));if(bytes.length!==info.bytes||hash(bytes)!==info.sha256)throw Error('Source integrity: '+id);rawBytes+=bytes.length;
   const osm=JSON.parse(zlib.gunzipSync(bytes));const checked=ctx.MilitaryPolicy.inspect(osm);const [px,py]=id.split('_').map(Number),bounds=[px*.05,py*.05,(px+1)*.05,(py+1)*.05];
   const features=checked.geo.features.map(f=>({...f,bbox:ctx.MilitaryPolicy.box(f.geometry),properties:Object.fromEntries(allowed.filter(k=>f.properties[k]!==undefined).map(k=>[k,f.properties[k]]))})).filter(f=>f.bbox&&ctx.MilitaryPolicy.overlaps(f.bbox,bounds));
   const detail=features.filter(f=>visible(f.properties));const mapEntry={};for(const lod of ['overview','detail']){const selected=lod==='overview'?detail.filter(f=>overview(f.properties)):detail;const out={schema:1,version,safeOnly:true,type:'FeatureCollection',features:selected};const v=write('map/'+lod+'/'+id+'.json.gz',out);mapEntry[lod]=v;mapBytes+=v.bytes;}maps[id]=mapEntry;
-  const build=features.filter(f=>relevant(f.properties));const zones=checked.zones.filter(b=>ctx.MilitaryPolicy.overlaps(b,bounds));
-  for(let x=px*5;x<(px+1)*5;x++)for(let y=py*5;y<(py+1)*5;y++){const b=[x*.01,y*.01,(x+1)*.01,(y+1)*.01],selected=build.filter(f=>ctx.MilitaryPolicy.overlaps(f.bbox,b)),z=zones.filter(v=>ctx.MilitaryPolicy.overlaps(v,b));if(!selected.length&&!z.length)continue;const fid=x+'_'+y;const v=write('model/'+fid+'.json.gz',{schema:1,version,safeOnly:true,type:'FeatureCollection',features:selected,zones:z});models[fid]=v;modelBytes+=v.bytes;modelTiles++;}
+  const build=features.filter(f=>relevant(f.properties));const zones=checked.zones.filter(b=>ctx.MilitaryPolicy.overlaps(b,bounds));const buckets=new Map();
+  function owner(b){const x=Math.max(px*5,Math.min((px+1)*5-1,Math.floor((b[0]+b[2])/.02))),y=Math.max(py*5,Math.min((py+1)*5-1,Math.floor((b[1]+b[3])/.02)));return x+'_'+y;}
+  function bucket(id){if(!buckets.has(id))buckets.set(id,{features:[],zones:[]});return buckets.get(id);}
+  for(const f of build)bucket(owner(f.bbox)).features.push(f);for(const z of zones)bucket(owner(z)).zones.push(z);
+  for(const [bid,value] of buckets){const v=write('model/'+bid+'.json.gz',{schema:1,version,safeOnly:true,type:'FeatureCollection',...value});modelBuckets[bid]=v;modelBytes+=v.bytes;modelTiles++;}
+  for(let x=px*5;x<(px+1)*5;x++)for(let y=py*5;y<(py+1)*5;y++){const b=[x*.01,y*.01,(x+1)*.01,(y+1)*.01];const refs=[...buckets].filter(([id,v])=>v.features.some(f=>ctx.MilitaryPolicy.overlaps(f.bbox,b))||v.zones.some(z=>ctx.MilitaryPolicy.overlaps(z,b))).map(([id])=>id);if(refs.length)models[x+'_'+y]=refs;}
+
   tiles++;
  }
- for(const [kind,data] of [['map-catalog',maps],['model-catalog',models]]){fs.mkdirSync(path.join(dest,kind),{recursive:true});fs.writeFileSync(path.join(dest,kind,column+'.json'),JSON.stringify({version,tiles:data}));}console.log(JSON.stringify({column,tiles,modelTiles,seconds:Math.round((Date.now()-started)/1000)}));
+ for(const [kind,data] of [['map-catalog',maps],['model-catalog',models]]){fs.mkdirSync(path.join(dest,kind),{recursive:true});fs.writeFileSync(path.join(dest,kind,column+'.json'),JSON.stringify({version,tiles:data,...(kind==='model-catalog'?{buckets:modelBuckets}:{})}));}console.log(JSON.stringify({column,tiles,modelTiles,seconds:Math.round((Date.now()-started)/1000)}));
 }
 const index={schema:1,version,sourceVersion:sourceIndex.version,sourceDate:sourceIndex.sourceDate,safeOnly:true,mapStep:.05,modelStep:.01,coverage:sourceIndex.coverage,columns,attribution:sourceIndex.attribution};fs.writeFileSync(path.join(dest,'index.json'),JSON.stringify(index));fs.writeFileSync(path.join(dest,'build-report'+(process.env.CONTA_PART?'-'+process.env.CONTA_PART:'')+'.json'),JSON.stringify({version,sourceTiles:tiles,modelTiles,mapBytes,modelBytes,sourceBytes:rawBytes,seconds:(Date.now()-started)/1000}));
