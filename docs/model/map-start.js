@@ -1,5 +1,5 @@
-import {installSelection} from './selection.js?v=data-oct2';
-import {installFilteredMap} from './vector-map.js?v=data-oct2';
+import {installSelection} from './selection.js?v=map-small1';
+import {installFilteredMap} from './vector-map.js?v=map-small1';
 const map=L.map('map',{zoomControl:true,minZoom:14,maxZoom:19}).setView([37.5665,126.978],16);
 installFilteredMap(map,L);
 window.contaSelection=installSelection(map);

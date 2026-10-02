@@ -1,4 +1,4 @@
-import {loadMap} from './korea-data.js?v=data-oct2';
+import {loadMap} from './korea-data.js?v=map-small1';
 export function installFilteredMap(map,L){
  const preview=L.tileLayer('https://raw.githubusercontent.com/yohyeseong/conta-studio-web/korea-data/map-preview/{z}/{x}/{y}.png',{minZoom:14,maxZoom:19,minNativeZoom:14,maxNativeZoom:14,updateWhenIdle:false,keepBuffer:3,errorTileUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='}).addTo(map);
  const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3];
@@ -29,23 +29,23 @@ export function installFilteredMap(map,L){
   if(map.getZoom()<14){message('확대하거나 장소를 검색해 주세요.');return;}
   if((bounds[2]-bounds[0])*(bounds[3]-bounds[1])*1e10>30e6){message('지도를 더 확대해 주세요.');return;}
   if(active&&active.detail===detail&&contains(active.bounds,bounds)){active.labelGroup.clearLayers();labels(active.geo,active.labelGroup,active.name);message('전국 한국 OSM · 2026-10-02 · 공식 도로 보강');return;}
-  message(active?'추가 지도 불러오는 중…':'지도 불러오는 중…');let staged;
+  message(active?'추가 지도 불러오는 중…':'지도 불러오는 중…');let staged;const loadAt=performance.now();
   try{
    let entry=[...cache.values()].find(e=>e.detail===detail&&contains(e.bounds,bounds));
    if(!entry){let request=pending;
     if(!request||request.detail!==detail||!contains(request.bounds,bounds)){
-     const dx=(bounds[2]-bounds[0])*.35,dy=(bounds[3]-bounds[1])*.35,b=[Math.max(-180,bounds[0]-dx),Math.max(-85,bounds[1]-dy),Math.min(180,bounds[2]+dx),Math.min(85,bounds[3]+dy)];
+     const dx=(bounds[2]-bounds[0])*.12,dy=(bounds[3]-bounds[1])*.12,b=[Math.max(-180,bounds[0]-dx),Math.max(-85,bounds[1]-dy),Math.min(180,bounds[2]+dx),Math.min(85,bounds[3]+dy)];
      request={bounds:b,detail};request.promise=loadMap(b,detail).then(geo=>{const value={bounds:b,detail,geo};if(cache.size>=8)cache.delete(cache.keys().next().value);cache.set(detail+':'+b.join(','),value);return value;});pending=request;request.promise.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});
     }
     entry=await request.promise;
    }
    if(id!==seq||moving)return;
-   staged=create(entry,id);
+   const loadMs=performance.now()-loadAt,drawAt=performance.now();staged=create(entry,id);const drawMs=performance.now()-drawAt;
    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
    if(id!==seq||moving||!contains(entry.bounds,viewport())||detail!==16){dispose(staged);return;}
    const previous=active;staged.pane.style.opacity='1';staged.pane.style.pointerEvents='auto';active=staged;dispose(previous);
    if(map.hasLayer(preview))map.removeLayer(preview);
-   Object.assign(state,{ready:true,swaps:state.swaps+1,previewActive:false,bounds:entry.bounds,detail,features:entry.geo.features.length,buildings:entry.geo.features.filter(f=>f.properties?.building||f.properties?.['building:part']).length,minorRoads:entry.geo.features.filter(f=>['residential','service','footway','path','steps','pedestrian','living_street','cycleway','unclassified'].includes(f.properties?.highway)).length});message('전국 한국 OSM · 2026-10-02');
+   Object.assign(state,{ready:true,loadMs,drawMs,swaps:state.swaps+1,previewActive:false,bounds:entry.bounds,detail,features:entry.geo.features.length,buildings:entry.geo.features.filter(f=>f.properties?.building||f.properties?.['building:part']).length,minorRoads:entry.geo.features.filter(f=>['residential','service','footway','path','steps','pedestrian','living_street','cycleway','unclassified'].includes(f.properties?.highway)).length});message('전국 한국 OSM · 2026-10-02 · 공식 도로 보강');
   }catch(e){if(staged&&staged!==active)dispose(staged);if(id===seq&&!moving)message(active?'지도 수신 지연 · 기존 지도 유지 중':'지도를 받지 못했습니다. 다시 이동하거나 확대해 주세요.');}
  }
  map.on('movestart',()=>{moving=true;seq++;clearTimeout(timer);});map.on('moveend',()=>{moving=false;schedule();});refresh();

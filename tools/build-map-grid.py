@@ -60,6 +60,18 @@ def main():
     columns=a.columns.split(',') if a.columns else index['columns'];count=total=0;started=time.time()
     with concurrent.futures.ProcessPoolExecutor(a.workers) as pool:
         for n,(tiles,size) in enumerate(pool.map(column,[(str(source),str(dest),c) for c in columns]),1):count+=tiles;total+=size;print('MAP_COLUMN',n,len(columns),count,total,flush=True)
+    rows={}
+    for p in (dest/'catalog').glob('*.json'):
+        x,y=p.stem.split('_');rows.setdefault(x,[]).append(int(y))
+    ranges={}
+    for x,values in rows.items():
+        runs=[]
+        for y in sorted(values):
+            if runs and runs[-1][1]+1==y:runs[-1][1]=y
+            else:runs.append([y,y])
+        ranges[x]=runs
     (dest/'index.json').write_text(json.dumps({'schema':1,'version':VERSION,'safeOnly':True,'sourceDate':'2026-10-02','step':.01,'catalogStep':.05,'columns':columns,'tiles':count,'bytes':total,'complete':True,'sources':['OpenStreetMap','국토교통부 표준노드링크 2026-09-14'],'attribution':'© OpenStreetMap contributors · ODbL 1.0 · 국토교통부'},ensure_ascii=False,separators=(',',':')),encoding='utf-8')
     print('MAP_COMPLETE',count,total,round(time.time()-started),flush=True)
+    p=dest/'index.json';manifest=read(p);manifest['catalogRows']=ranges;p.write_text(json.dumps(manifest,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
 if __name__=='__main__':main()
+

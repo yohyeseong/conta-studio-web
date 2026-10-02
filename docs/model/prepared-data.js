@@ -1,7 +1,9 @@
-import {addOfficialRoads} from './official-roads.js?v=data-oct2';
-import {get,inKorea} from './korea-data.js?v=data-oct2';
+import {mapGrid} from './map-grid.js?v=map-small1';
+import {addOfficialRoads} from './official-roads.js?v=map-small1';
+import {get,inKorea} from './korea-data.js?v=map-small1';
 const ROOT='prepared/20261002/',VERSION='895aa1a4fe0bd79c-prepared2';
 export async function preparedData(bounds,kind='model',zoom=16){
+ if(kind==='map')return {preparedGeo:await mapGrid(bounds)};
  if(!inKorea(bounds))throw Error('전국 데이터 범위 밖입니다.');
  const index=await get(ROOT+'index.json');if(index.schema!==1||index.version!==VERSION||!index.safeOnly||index.sourceDate!=='2026-10-02')throw Error('가공 데이터 버전 불일치');
  const step=kind==='map'?index.mapStep:index.modelStep,[w,s,e,n]=bounds,ids=[];

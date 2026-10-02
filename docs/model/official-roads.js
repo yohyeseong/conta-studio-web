@@ -1,4 +1,4 @@
-import {get} from './korea-data.js?v=data-oct2';
+import {get} from './korea-data.js?v=map-small1';
 const ROOT='supplemental/official-roads-20260914/',VERSION='official-roads-20260914-safe-v1';
 export async function addOfficialRoads(value,bounds){
  const index=await get(ROOT+'index.json');if(index.schema!==1||index.version!==VERSION||index.safeOnly!==true||index.sourceDate!=='2026-09-14'||index.widthKnown!==false)throw Error('공식 도로 자료 검증 실패');

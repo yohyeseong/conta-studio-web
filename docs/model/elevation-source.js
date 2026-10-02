@@ -1,4 +1,4 @@
-import {get,inKorea} from './korea-data.js?v=data-oct2';
+import {get,inKorea} from './korea-data.js?v=map-small1';
 const ROOT='elevation/glo30-2021/',BASE='https://raw.githubusercontent.com/yohyeseong/conta-studio-web/korea-data/';
 export async function elevationPlan(bounds,jobs,zoom=12){
  if(inKorea(bounds)){
