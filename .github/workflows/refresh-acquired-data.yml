@@ -1,0 +1,113 @@
+name: Refresh acquired national map data
+on:
+  push:
+    branches: [main]
+    paths: ['tools/refresh-korea/**', 'tools/prepare-latest.cjs', '.github/workflows/refresh-acquired-data.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install validated processing dependencies
+        run: pip install osmium==4.3.1 shapely==2.1.2 pyproj==3.8.0
+      - name: Download and verify acquired source
+        run: |
+          curl --fail --location --retry 3 https://tiles.osm.kr/download/south-korea-latest-non-military.osm.pbf -o /tmp/latest.osm.pbf
+          echo '105fd7788ae8b8c3b440725bac66eca0ee42b27f8bf00a37b6f5384885d1f0b3  /tmp/latest.osm.pbf' | sha256sum --check
+          python - <<'PY'
+          import pathlib,urllib.request,hashlib
+          data=urllib.request.urlopen('https://cdn.jsdelivr.net/npm/osmtogeojson@3.0.0-beta.5/osmtogeojson.js',timeout=60).read()
+          variants=[data,data.replace(b'\r\n',b'\n'),data.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')]
+          selected=next(d for d in variants if hashlib.sha256(d).hexdigest()=='663bb5bbae47d5d12bff9cf1c87b8f973e85fab4b1f83453810aae99add54592')
+          p=pathlib.Path('docs/model/vendor/osmtogeojson.js');p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(selected)
+          PY
+      - name: Apply full privacy and topology validation
+        run: |
+          python - <<'PY'
+          import sys,pathlib,json
+          sys.path.insert(0,'tools/refresh-korea')
+          from korea_safe_index import build
+          metadata=build('/tmp/latest.osm.pbf','/tmp/latest-safe','2026-10-01',lambda s:print(s,flush=True))
+          assert metadata['safe_only'] and metadata['sha256']=='105fd7788ae8b8c3b440725bac66eca0ee42b27f8bf00a37b6f5384885d1f0b3'
+          pathlib.Path('/tmp/source-report.json').write_text(json.dumps({'counts':metadata['counts'],'sourceDate':'2026-10-01','sha256':metadata['sha256']}))
+          PY
+      - name: Create regional source data
+        run: |
+          python tools/refresh-korea/build_tiles.py --app-dir tools/refresh-korea --safe-index /tmp/latest-safe --output /tmp/latest-tiles --workers 4
+          python tools/refresh-korea/publish_tiles.py /tmp/latest-tiles /tmp/latest-source
+      - name: Create complete map and model geography
+        env:
+          CONTA_PARALLEL: '2'
+        run: node tools/prepare-latest.cjs /tmp/latest-source /tmp/latest-prepared docs/model
+      - name: Validate completion
+        run: |
+          python - <<'PY'
+          import json,pathlib,gzip,hashlib
+          root=pathlib.Path('/tmp/latest-prepared');index=json.loads((root/'index.json').read_text())
+          assert index['sourceDate']=='2026-10-01' and index['safeOnly'] and len(index['columns'])>150
+          count=0
+          for c in index['columns']:
+              cat=json.loads((root/'map-catalog'/f'{c}.json').read_text())
+              assert cat['version']==index['version']
+              for ident,info in cat['tiles'].items():
+                  item=info['detail'];data=(root/'map/detail'/f'{ident}.json.gz').read_bytes()
+                  assert len(data)==item['bytes'] and hashlib.sha256(data).hexdigest()==item['sha256']
+                  tile=json.loads(gzip.decompress(data));assert tile['safeOnly'] and tile['version']==index['version']
+                  count+=1
+          assert count>14000
+          print('NATIONAL_DATA_VERIFIED',index['version'],count)
+          PY
+      - name: Publish complete edition preserving previous data
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set prepared/20261001
+          git checkout -B korea-data FETCH_HEAD
+          mkdir -p prepared/20261001
+          cp -a /tmp/latest-prepared/. prepared/20261001/
+          git config pack.window 0
+          git config pack.threads 2
+          git config core.compression 1
+          python - <<'PY'
+          import pathlib,subprocess
+          root=pathlib.Path('prepared/20261001');manifest=root/'index.json'
+          files=sorted(p for p in root.rglob('*') if p.is_file() and p!=manifest)
+          batch=[];size=0;number=0
+          def publish(paths):
+              global number
+              number+=1
+              pathlib.Path('/tmp/edition-paths').write_bytes(b'\x00'.join(str(p).encode() for p in paths)+b'\x00')
+              subprocess.run(['git','add','--pathspec-from-file=/tmp/edition-paths','--pathspec-file-nul'],check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode==0:return
+              subprocess.run(['git','commit','-m',f'Publish acquired 20261001 geography batch {number}'],check=True)
+              subprocess.run(['git','push','origin','korea-data'],check=True)
+              print('Published batch',number,len(paths),flush=True)
+          for p in files:
+              length=p.stat().st_size
+              if batch and (size+length>128*1024*1024 or len(batch)>=10000):
+                  publish(batch);batch=[];size=0
+              batch.append(p);size+=length
+          if batch:publish(batch)
+          publish([manifest])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acquired-national-report
+          path: |
+            /tmp/source-report.json
+            /tmp/latest-prepared/build-report*.json
