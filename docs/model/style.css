@@ -5,3 +5,5 @@
 header #help{margin-left:0}header #download{margin-left:auto}.download-link{display:block;background:#304f79;color:white;padding:12px;text-align:center;border-radius:6px;text-decoration:none;margin:18px 0}@media(max-width:680px){header{gap:8px}.brand strong{font-size:12px}header button{padding:7px;font-size:11px}}
 
 .map-label-box{pointer-events:none;text-align:center}.map-label{font-size:12px;font-weight:600;color:#354235;white-space:nowrap;text-shadow:1px 1px 2px white,-1px -1px 2px white,1px -1px 2px white,-1px 1px 2px white}
+
+.settings input[type="checkbox"]{width:auto;align-self:flex-start;accent-color:#245bf6;}
