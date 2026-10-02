@@ -19,7 +19,6 @@ jobs:
           node-version: '22'
       - run: node cloudflare/vworld/test.mjs
   deploy:
-    if: github.event_name == 'workflow_dispatch'
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
