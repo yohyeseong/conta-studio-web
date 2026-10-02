@@ -1,4 +1,4 @@
-import {get,inKorea} from './korea-data.js?v=map-small1';
+import {get,inKorea} from './korea-data.js?v=packed2';
 const ROOT='map-grid/20261002/',VERSION='895aa1a4fe0bd79c-mapgrid1';
 export async function mapGrid(bounds){
  if(!inKorea(bounds))throw Error('전국 지도 범위 밖입니다.');

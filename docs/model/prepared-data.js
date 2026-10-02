@@ -1,6 +1,6 @@
-import {mapGrid} from './map-grid.js?v=map-small1';
-import {addOfficialRoads} from './official-roads.js?v=map-small1';
-import {get,inKorea} from './korea-data.js?v=map-small1';
+import {mapGrid} from './map-grid.js?v=packed2';
+import {addOfficialRoads} from './official-roads.js?v=packed2';
+import {get,inKorea} from './korea-data.js?v=packed2';
 const ROOT='prepared/20261002/',VERSION='895aa1a4fe0bd79c-prepared2';
 export async function preparedData(bounds,kind='model',zoom=16){
  if(kind==='map')return {preparedGeo:await mapGrid(bounds)};

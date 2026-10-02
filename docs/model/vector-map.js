@@ -1,53 +1,18 @@
-import {loadMap} from './korea-data.js?v=map-small1';
+import {packedMap,world} from './packed-map.js?v=packed2';
+import {loadMap,inKorea} from './korea-data.js?v=packed2';
+const styles={1:['#a7abb1',1,'#d5d6d9'],2:['#e6b77f',5,'#d0d8e2'],3:['#e6b77f',2,'#d0d8e2'],4:['#80858b',2],5:['#8dc1dc',1,'#8dc1dc'],6:['#b2cba8',.5,'#d5e5cc'],7:['#d3bd9e',.5,'#e8dbc7']};
+const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3];
+function fromGeo(geo,bounds){const records=[];for(const f of geo.features){const t=f.properties||{},g=f.geometry;if(!g)continue;const kind=t.railway?4:t['area:highway']?7:t.highway?['primary','secondary','trunk','motorway'].includes(t.highway)?2:3:t.waterway||t.natural==='water'?5:t.building||t['building:part']?1:t.landuse||t.leisure||['wood','scrub','grassland'].includes(t.natural)?6:0,mode=g.type.endsWith('Polygon')?3:g.type.endsWith('LineString')?2:0,list=g.type==='LineString'?[g.coordinates]:['Polygon','MultiLineString'].includes(g.type)?g.coordinates:g.type==='MultiPolygon'?g.coordinates.flat():[],b=f.bbox||MilitaryPolicy.box(g);records.push({kind,mode,place:!!t.place,name:t['name:ko']||t.name,anchor:b?world((b[0]+b[2])/2,(b[1]+b[3])/2):null,paths:list.map(r=>({points:Float64Array.from(r.flatMap(c=>world(...c))),edge:new Uint8Array(r.length)}))});}return {records,bounds,detail:'world'};}
 export function installFilteredMap(map,L){
- const preview=L.tileLayer('https://raw.githubusercontent.com/yohyeseong/conta-studio-web/korea-data/map-preview/{z}/{x}/{y}.png',{minZoom:14,maxZoom:19,minNativeZoom:14,maxNativeZoom:14,updateWhenIdle:false,keepBuffer:3,errorTileUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='}).addTo(map);
- const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3];
- let active=null,pending=null,timer,seq=0,moving=false;const cache=new Map();
- const state=map.contaMapState={ready:false,swaps:0,previewActive:true,bounds:null,detail:null,features:0};
- const note=L.control({position:'bottomleft'});note.onAdd=()=>{const div=L.DomUtil.create('div','map-note');div.textContent='지도 불러오는 중…';return div;};note.addTo(map);
- const message=text=>note.getContainer().textContent=text;
- const schedule=()=>{clearTimeout(timer);timer=setTimeout(refresh,140);};
- const viewport=()=>{const b=map.getBounds();return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];};
- function dispose(view){if(!view)return;map.removeLayer(view.group);if(map.hasLayer(view.renderer))map.removeLayer(view.renderer);view.pane.remove();delete map._panes[view.name];}
- function labels(geo,target,name){
-  const used=[],names=new Set(),size=map.getSize();
-  const features=geo.features.filter(f=>f.properties?.['name:ko']||f.properties?.name).sort((a,b)=>Number(!!b.properties.place)-Number(!!a.properties.place));
-  for(const f of features){const t=f.properties||{},text=t['name:ko']||t.name;if(!(t.place||t.highway||t.leisure||t.natural==='water'||(map.getZoom()>=17&&t.building)))continue;
-   const key=(t.place?'place:':t.highway?'road:':'other:')+text;if(names.has(key))continue;
-   const b=f.bbox||MilitaryPolicy.box(f.geometry);if(!b)continue;const ll=[(b[1]+b[3])/2,(b[0]+b[2])/2],p=map.latLngToContainerPoint(ll);if(p.x<8||p.y<8||p.x>size.x-8||p.y>size.y-8)continue;
-   const w=Math.min(180,String(text).length*12+12);if(used.some(r=>Math.abs(r.x-p.x)<(r.w+w)/2&&Math.abs(r.y-p.y)<25))continue;used.push({x:p.x,y:p.y,w});names.add(key);
-   const el=document.createElement('span');el.className='map-label';el.textContent=String(text).slice(0,35);L.marker(ll,{pane:name,interactive:false,icon:L.divIcon({className:'map-label-box',html:el,iconSize:[w,22],iconAnchor:[w/2,11]})}).addTo(target);if(used.length>=70)break;
-  }
- }
- function create(entry,id){
-  const name='conta-map-'+id,pane=map.createPane(name);pane.classList.add('conta-map-content');pane.style.zIndex='410';pane.style.opacity='0';pane.style.pointerEvents='none';
-  const renderer=L.canvas({pane:name,padding:.4}),group=L.layerGroup().addTo(map),labelGroup=L.layerGroup().addTo(group);const view={...entry,name,pane,renderer,group,labelGroup};
-  try{L.geoJSON(entry.geo,{pane:name,renderer,filter:f=>{const t=f.properties||{};return f.geometry?.type!=='Point'&&(t.highway||t['area:highway']||t.railway||t.building||t['building:part']||t.landuse||t.leisure||t.waterway||['water','wood','scrub','grassland'].includes(t.natural));},style:f=>{const t=f.properties||{};return t.railway?{color:'#80858b',weight:2,dashArray:'5 4',fill:false}:t['area:highway']?{color:'#d3bd9e',weight:.5,fillColor:'#e8dbc7',fillOpacity:.7}:t.highway?{color:'#e6b77f',weight:['primary','secondary','trunk','motorway'].includes(t.highway)?5:2,fillColor:'#d0d8e2',fillOpacity:.6}:t.waterway||t.natural==='water'?{color:'#8dc1dc',weight:1,fillOpacity:.8}:t.building||t['building:part']?{color:'#a7abb1',weight:1,fillColor:'#d5d6d9',fillOpacity:.8}:{color:'#b2cba8',weight:.5,fillColor:'#d5e5cc',fillOpacity:.8};},onEachFeature:(f,l)=>{const t=f.properties||{},text=t['name:ko']||t.name;if(text){const el=document.createElement('span');el.textContent=text;l.bindTooltip(el,{sticky:true});}}}).addTo(group);labels(entry.geo,labelGroup,name);return view;}catch(e){dispose(view);throw e;}
- }
- async function refresh(){
-  const id=++seq,detail=16,bounds=viewport();if(moving)return;
-  if(map.getZoom()<14){message('확대하거나 장소를 검색해 주세요.');return;}
-  if((bounds[2]-bounds[0])*(bounds[3]-bounds[1])*1e10>30e6){message('지도를 더 확대해 주세요.');return;}
-  if(active&&active.detail===detail&&contains(active.bounds,bounds)){active.labelGroup.clearLayers();labels(active.geo,active.labelGroup,active.name);message('전국 한국 OSM · 2026-10-02 · 공식 도로 보강');return;}
-  message(active?'추가 지도 불러오는 중…':'지도 불러오는 중…');let staged;const loadAt=performance.now();
-  try{
-   let entry=[...cache.values()].find(e=>e.detail===detail&&contains(e.bounds,bounds));
-   if(!entry){let request=pending;
-    if(!request||request.detail!==detail||!contains(request.bounds,bounds)){
-     const dx=(bounds[2]-bounds[0])*.12,dy=(bounds[3]-bounds[1])*.12,b=[Math.max(-180,bounds[0]-dx),Math.max(-85,bounds[1]-dy),Math.min(180,bounds[2]+dx),Math.min(85,bounds[3]+dy)];
-     request={bounds:b,detail};request.promise=loadMap(b,detail).then(geo=>{const value={bounds:b,detail,geo};if(cache.size>=8)cache.delete(cache.keys().next().value);cache.set(detail+':'+b.join(','),value);return value;});pending=request;request.promise.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});
-    }
-    entry=await request.promise;
-   }
-   if(id!==seq||moving)return;
-   const loadMs=performance.now()-loadAt,drawAt=performance.now();staged=create(entry,id);const drawMs=performance.now()-drawAt;
-   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-   if(id!==seq||moving||!contains(entry.bounds,viewport())||detail!==16){dispose(staged);return;}
-   const previous=active;staged.pane.style.opacity='1';staged.pane.style.pointerEvents='auto';active=staged;dispose(previous);
-   if(map.hasLayer(preview))map.removeLayer(preview);
-   Object.assign(state,{ready:true,loadMs,drawMs,swaps:state.swaps+1,previewActive:false,bounds:entry.bounds,detail,features:entry.geo.features.length,buildings:entry.geo.features.filter(f=>f.properties?.building||f.properties?.['building:part']).length,minorRoads:entry.geo.features.filter(f=>['residential','service','footway','path','steps','pedestrian','living_street','cycleway','unclassified'].includes(f.properties?.highway)).length});message('전국 한국 OSM · 2026-10-02 · 공식 도로 보강');
-  }catch(e){if(staged&&staged!==active)dispose(staged);if(id===seq&&!moving)message(active?'지도 수신 지연 · 기존 지도 유지 중':'지도를 받지 못했습니다. 다시 이동하거나 확대해 주세요.');}
- }
- map.on('movestart',()=>{moving=true;seq++;clearTimeout(timer);});map.on('moveend',()=>{moving=false;schedule();});refresh();
+ let active=null,pending=null,seq=0,timer,moving=false;const cache=new Map(),state=map.contaMapState={ready:false,swaps:0,previewActive:false,bounds:null,detail:null,features:0};
+ const viewport=()=>{const b=map.getBounds();return [b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];},detail=()=>inKorea(viewport())?(map.getZoom()>=17?'detail':'low'):'world';
+ const note=L.control({position:'bottomleft'});note.onAdd=()=>{const d=L.DomUtil.create('div','map-note');d.textContent='지도 불러오는 중…';return d;};note.addTo(map);const message=t=>note.getContainer().textContent=t;
+ function labels(view){view.labels.clearLayers();const size=map.getSize(),origin=map.getPixelBounds().min,scale=2**(map.getZoom()-19),used=[],names=new Set();for(const r of [...view.records].filter(r=>r.name&&r.anchor).sort((a,b)=>Number(b.place)-Number(a.place))){if(r.kind===1&&map.getZoom()<17)continue;const p={x:r.anchor[0]*scale-origin.x,y:r.anchor[1]*scale-origin.y};if(p.x<8||p.y<8||p.x>size.x-8||p.y>size.y-8)continue;const key=(r.place?'place:':[2,3].includes(r.kind)?'road:':'other:')+r.name;if(names.has(key))continue;const width=Math.min(180,r.name.length*12+12);if(used.some(a=>Math.abs(a.x-p.x)<(a.w+width)/2&&Math.abs(a.y-p.y)<25))continue;names.add(key);used.push({...p,w:width});const el=document.createElement('span');el.className='map-label';el.textContent=r.name.slice(0,35);const ll=map.unproject(L.point(...r.anchor),19);L.marker(ll,{pane:view.name,interactive:false,icon:L.divIcon({className:'map-label-box',html:el,iconSize:[width,22],iconAnchor:[width/2,11]})}).addTo(view.labels);if(used.length>=70)break;}}
+ function draw(view){const canvas=view.canvas,size=map.getSize(),dpr=Math.min(2,devicePixelRatio||1);if(canvas.width!==size.x*dpr||canvas.height!==size.y*dpr){canvas.width=size.x*dpr;canvas.height=size.y*dpr;canvas.style.width=size.x+'px';canvas.style.height=size.y+'px';}L.DomUtil.setPosition(canvas,map.containerPointToLayerPoint([0,0]));const ctx=canvas.getContext('2d'),scale=2**(map.getZoom()-19),origin=map.getPixelBounds().min;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,size.x,size.y);ctx.lineJoin=ctx.lineCap='round';for(const r of view.records){if(!r.kind||!r.mode)continue;const [stroke,width,fill]=styles[r.kind];ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.setLineDash(r.kind===4?[5,4]:[]);ctx.beginPath();for(const path of r.paths){const a=path.points;for(let i=0;i<a.length;i+=2){const x=a[i]*scale-origin.x,y=a[i+1]*scale-origin.y;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}if(r.mode===3)ctx.closePath();}if(r.mode===3&&fill){ctx.fillStyle=fill;ctx.globalAlpha=[2,3].includes(r.kind)?.6:r.kind===7?.7:.8;ctx.fill('evenodd');ctx.globalAlpha=1;}
+ if(r.mode===3){ctx.beginPath();for(const path of r.paths){const a=path.points;for(let i=2;i<a.length;i+=2){if(path.edge[i/2]&path.edge[i/2-1])continue;ctx.moveTo(a[i-2]*scale-origin.x,a[i-1]*scale-origin.y);ctx.lineTo(a[i]*scale-origin.x,a[i+1]*scale-origin.y);}}}ctx.stroke();}}
+ function create(entry,id){const name='conta-packed-'+id,pane=map.createPane(name);pane.classList.add('conta-map-content');pane.style.zIndex='410';pane.style.opacity='0';pane.style.pointerEvents='none';const canvas=document.createElement('canvas');canvas.style.position='absolute';pane.append(canvas);const group=L.layerGroup().addTo(map),labelGroup=L.layerGroup().addTo(group),view={...entry,name,pane,canvas,group,labels:labelGroup};draw(view);labels(view);return view;}
+ function dispose(view){if(!view)return;map.removeLayer(view.group);view.pane.remove();delete map._panes[view.name];}
+ async function refresh(){const id=++seq,bounds=viewport(),lod=detail();if(moving)return;if(map.getZoom()<14){message('확대하거나 장소를 검색해 주세요.');return;}if(active&&active.detail===lod&&contains(active.bounds,bounds)){labels(active);return;}message(active?'추가 지도 불러오는 중…':'지도 불러오는 중…');const start=performance.now();let staged;try{let entry=[...cache.values()].find(e=>e.detail===lod&&contains(e.bounds,bounds));if(!entry){let request=pending;if(!request||request.detail!==lod||!contains(request.bounds,bounds)){request={bounds,detail:lod};request.promise=(lod==='world'?loadMap(bounds,16).then(g=>fromGeo(g,bounds)):packedMap(bounds,lod)).then(v=>{cache.set(lod+':'+bounds.join(','),v);if(cache.size>8)cache.delete(cache.keys().next().value);return v;});pending=request;request.promise.then(()=>{if(pending===request)pending=null;},()=>{if(pending===request)pending=null;});}entry=await request.promise;}if(id!==seq||moving)return;const loadMs=performance.now()-start,drawAt=performance.now();staged=create(entry,id);const drawMs=performance.now()-drawAt;await new Promise(resolve=>requestAnimationFrame(resolve));if(id!==seq||moving||!contains(entry.bounds,viewport())||entry.detail!==detail()){dispose(staged);return;}const previous=active;active=staged;staged.pane.style.opacity='1';dispose(previous);Object.assign(state,{ready:true,loadMs,drawMs,swaps:state.swaps+1,bounds:entry.bounds,detail:lod,features:entry.records.length,buildings:entry.records.filter(r=>r.kind===1).length,minorRoads:entry.records.filter(r=>r.kind===3).length});map.fire('conta-map-ready');message(lod==='world'?'OpenStreetMap · 주변 지도':'전국 한국 OSM · 2026-10-02 · 공식 도로 보강');}catch(e){if(staged&&staged!==active)dispose(staged);if(id===seq&&!moving)message(active?'지도 수신 지연 · 기존 지도 유지 중':'지도를 받지 못했습니다. 다시 이동하거나 확대해 주세요.');}}
+ let frame;map.on('move zoom resize',()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{if(active)draw(active);});});map.on('movestart',()=>{moving=true;seq++;clearTimeout(timer);});map.on('moveend',()=>{moving=false;clearTimeout(timer);timer=setTimeout(refresh,0);});refresh();
  L.control.attribution({prefix:false}).addAttribution('© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>').addTo(map);
 }
