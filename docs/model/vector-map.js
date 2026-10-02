@@ -1,4 +1,4 @@
-import {loadMap} from './korea-data.js?v=map3';
+import {loadMap} from './korea-data.js?v=map4';
 export function installFilteredMap(map,L,report){
  const preview=L.tileLayer('https://raw.githubusercontent.com/yohyeseong/conta-studio-web/korea-data/map-preview/{z}/{x}/{y}.png',{minZoom:14,maxZoom:19,minNativeZoom:14,maxNativeZoom:14,updateWhenIdle:false,keepBuffer:3,errorTileUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='}).addTo(map);
  let layer=L.layerGroup().addTo(map),timer,seq=0,controller,cache=new Map(),active=null,pending=null; const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3]; const renderer=L.canvas({padding:.3});
