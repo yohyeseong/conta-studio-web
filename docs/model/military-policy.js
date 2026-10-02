@@ -8,5 +8,6 @@ function inspect(osm){if(!osm||!Array.isArray(osm.elements)||osm.remark)throw Er
 function assertSelection(osm,bounds){const result=inspect(osm);if(result.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');return result;}
 function query(b,zoom){const [w,s,e,n]=b,bbox=[s,w,n,e].join(',');const tags='^(building|building:part|highway|area:highway|landuse|leisure|natural|waterway|railway|military|access|aerodrome|operator:type)$';return `[out:json][timeout:45][maxsize:33554432];(nwr[~"${tags}"~"."](${bbox});node[place][name](${bbox}););out body;>;out skel qt;`;}
 
-root.MilitaryPolicy={tagged,box,overlaps,inspect,assertSelection,query};
+function assertPrepared(value,bounds){if(!value||value.dataVersion!=='4e05284bc04d8ff5-prepared2'||!Array.isArray(value.preparedGeo?.features)||!Array.isArray(value.zones))throw Error('가공 데이터 검증 실패');if(value.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');if(value.preparedGeo.features.some(f=>tagged(f.properties)))throw Error('제외 대상 데이터 검증 실패');return {geo:value.preparedGeo,zones:value.zones};}
+root.MilitaryPolicy={tagged,box,overlaps,inspect,assertSelection,assertPrepared,query};
 })(typeof self!=='undefined'?self:globalThis);
