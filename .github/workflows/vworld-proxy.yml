@@ -77,10 +77,10 @@ jobs:
           base=pathlib.Path('proxy-url.txt').read_text().strip()
           for attempt in range(6):
               try:
-                  health=urllib.request.Request(base+'/health',headers={'Origin':'https://yohyeseong.github.io'})
+                  health=urllib.request.Request(base+'/health',headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'})
                   with urllib.request.urlopen(health,timeout=20) as r:
                       if not json.load(r).get('ready'):raise RuntimeError('Missing VWorld server secret')
-                  tile=urllib.request.Request(base+'/tiles/16/55800/25300.png',headers={'Origin':'https://yohyeseong.github.io'})
+                  tile=urllib.request.Request(base+'/tiles/16/55800/25300.png',headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'})
                   with urllib.request.urlopen(tile,timeout=25) as r:
                       data=r.read()
                       if not data.startswith(bytes([137,80,78,71,13,10,26,10])):raise RuntimeError('Invalid PNG')
