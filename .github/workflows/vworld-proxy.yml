@@ -102,6 +102,23 @@ jobs:
         with:
           name: vworld-proxy-address
           path: proxy-url.txt
+      - name: Diagnose provider connectivity
+        if: failure()
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os,urllib.request,urllib.error
+          key=os.environ['VWORLD_API_KEY'].strip()
+          url='https://api.vworld.kr/req/wmts/1.0.0/'+key+'/Base/16/25300/55800.png'
+          req=urllib.request.Request(url,headers={'Referer':'https://yohyeseong.github.io/','Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (compatible; ContaStudio/1.0)'})
+          try:
+              with urllib.request.urlopen(req,timeout=25) as r:
+                  body=r.read(8192)
+                  print('Provider direct diagnostic:',r.status,'PNG' if body.startswith(bytes([137,80,78,71,13,10,26,10])) else 'non-PNG')
+          except urllib.error.HTTPError as e:print('Provider direct diagnostic HTTP:',e.code)
+          except Exception as e:print('Provider direct connection type:',type(e).__name__)
+          PY
       - name: Remove temporary secret
         if: always()
         run: rm -f -- "$RUNNER_TEMP/vworld-worker-secrets.json"
