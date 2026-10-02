@@ -1,0 +1,40 @@
+name: Prepare city overview map
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/city-map.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install shapely==2.1.2
+      - uses: actions/checkout@v4
+        with:
+          ref: korea-data
+          path: source-data
+          sparse-checkout: |
+            prepared/20261002/map/overview
+            prepared/20261002/map-catalog
+      - run: python tools/build-city-map.py source-data/prepared/20261002 /tmp/city-map
+      - name: Publish verified city map
+        working-directory: source-data
+        run: |
+          git config user.name 'Conta Studio deployment'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git sparse-checkout set city-map/20261002
+          mkdir -p city-map/20261002
+          cp -a /tmp/city-map/. city-map/20261002/
+          git add city-map/20261002
+          git commit -m 'Publish verified city overview vectors'
+          git push origin HEAD:korea-data
