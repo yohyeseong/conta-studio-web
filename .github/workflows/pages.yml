@@ -33,7 +33,10 @@ jobs:
               for source in sources[name]:
                   try:
                       data=urllib.request.urlopen('https://cdn.jsdelivr.net/npm/'+source,timeout=60).read()
-                      if hashlib.sha256(data).hexdigest()!=digest:continue
+                      variants=[data,data.rstrip(b'\r\n'),data.rstrip(b'\r\n')+b'\n',data.replace(b'\r\n',b'\n'),data.replace(b'\r\n',b'\n').replace(b'\n',b'\r\n')]
+                      matches=[v for v in variants if hashlib.sha256(v).hexdigest()==digest]
+                      if not matches:continue
+                      data=matches[0]
                       path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data);return
                   except Exception:continue
               raise RuntimeError('Library verification failed: '+name)
