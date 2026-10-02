@@ -1,4 +1,4 @@
-import {loadOSM} from './korea-data.js';
+import {loadOSM} from './korea-data.js?v=speed2';
 export function installFilteredMap(map,L,report){
  let layer=L.layerGroup().addTo(map),timer,seq=0,controller,cache=new Map(),active=null,pending=null; const contains=(a,b)=>a[0]<=b[0]&&a[1]<=b[1]&&a[2]>=b[2]&&a[3]>=b[3]; const renderer=L.canvas({padding:.3});
  const note=L.control({position:'bottomleft'});note.onAdd=()=>{const div=L.DomUtil.create('div','map-note');div.textContent='필터링한 OSM 지도';return div;};note.addTo(map);
