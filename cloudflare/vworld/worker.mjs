@@ -20,7 +20,7 @@ export default {
   if(!env.VWORLD_API_KEY)return fail(503,'Map service not configured');
   if(env.TILE_LIMITER){const result=await env.TILE_LIMITER.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'});if(!result.success)return fail(429,'Please retry later');}
   try{
-   const upstream=await fetch('https://api.vworld.kr/req/wmts/1.0.0/'+encodeURIComponent(env.VWORLD_API_KEY.trim())+'/Base/'+z+'/'+y+'/'+x+'.png',{headers:{Referer:allowed+'/',Origin:allowed,'User-Agent':'Mozilla/5.0 (compatible; ContaStudio/1.0)'},redirect:'manual',signal:AbortSignal.timeout(12000)});
+   const upstream=await fetch('https://api.vworld.kr/req/wmts/1.0.0/'+encodeURIComponent(env.VWORLD_API_KEY.trim())+'/Base/'+z+'/'+y+'/'+x+'.png',{headers:{Referer:allowed+'/conta-studio-web/model/',Accept:'image/png,image/*;q=0.8,*/*;q=0.5','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'},redirect:'manual',signal:AbortSignal.timeout(12000)});
    if(!upstream.ok||!upstream.headers.get('Content-Type')?.toLowerCase().startsWith('image/png')){const type=upstream.headers.get('Content-Type')?.toLowerCase()||'';const format=type.includes('json')?'JSON':type.includes('xml')?'XML':type.includes('html')?'HTML':'other';return fail(502,'Map provider HTTP '+upstream.status+' '+format);}
    const bytes=new Uint8Array(await upstream.arrayBuffer());
    if(bytes.length>2097152||!PNG.every((v,i)=>bytes[i]===v))return fail(502,'Invalid map image');
