@@ -80,3 +80,5 @@ jobs:
         with:
           name: acquired-elevation-report
           path: /tmp/elevation-prepared/index.json
+
+# Run after nationwide geography and official road publication.
