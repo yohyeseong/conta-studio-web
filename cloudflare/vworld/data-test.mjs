@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';import worker from './data-worker.mjs';
+const origin='https://yohyeseong.github.io',key='test-private-key',env={VWORLD_API_KEY:key};
+const req=(path,headers={Origin:origin})=>new Request('https://example.workers.dev'+path,{headers});
+const path='/data/buildings?bbox=126.978,37.565,126.980,37.567';
+assert.equal((await worker.fetch(req(path,{}),env)).status,403);
+assert.equal((await worker.fetch(req('/tiles/16/55800/25300.png'),env)).status,404);
+assert.equal((await worker.fetch(req('/data/buildings?bbox=124,33,132,39'),env)).status,400);
+assert.equal((await worker.fetch(req(path+'&url=example.com'),env)).status,400);
+assert.equal((await worker.fetch(req(path+'&page=21'),env)).status,400);
+assert.equal((await worker.fetch(req(path),{})).status,503);
+globalThis.fetch=async(url,options)=>{const u=new URL(url);assert.equal(u.hostname,'api.vworld.kr');assert.equal(u.pathname,'/req/data');assert.equal(u.searchParams.get('data'),'LT_C_SPBD');assert.equal(u.searchParams.get('key'),key);assert.equal(u.searchParams.get('crs'),'EPSG:4326');assert.equal(options.headers.Referer,origin+'/conta-studio-web/model/');return Response.json({response:{status:'OK',record:{total:'1'},result:{featureCollection:{features:[{type:'Feature',id:'1',geometry:{type:'Polygon',coordinates:[[[126.978,37.565],[126.979,37.565],[126.979,37.566],[126.978,37.565]]]},properties:{name:'building',unexpected:key}}]}}}});};
+const success=await worker.fetch(req(path),env);assert.equal(success.status,200);const body=await success.text();assert.equal(body.includes(key),false);assert.equal(JSON.parse(body).features.length,1);
+globalThis.fetch=async()=>Response.json({response:{status:'NOT_FOUND'}});assert.deepEqual((await (await worker.fetch(req(path),env)).json()).features,[]);
+globalThis.fetch=async()=>Response.json({response:{status:'ERROR',error:{code:'INVALID_KEY',text:key}}});const error=await worker.fetch(req(path),env);assert.equal(error.status,502);assert.equal((await error.text()).includes(key),false);
+globalThis.fetch=async()=>{throw Error(key);};assert.equal((await (await worker.fetch(req(path),env)).text()).includes(key),false);
+console.log('Data proxy tests passed: bounds, pagination, coordinates, provider failures, key redaction, no image routes.');

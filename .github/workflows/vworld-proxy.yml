@@ -1,4 +1,4 @@
-name: VWorld private map proxy
+name: VWorld private data proxy
 on:
   push:
     branches: [main]
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node cloudflare/vworld/test.mjs
+      - run: node cloudflare/vworld/data-test.mjs
   deploy:
     needs: verify
     runs-on: ubuntu-latest
@@ -68,57 +68,47 @@ jobs:
           pathlib.Path('proxy-url.txt').write_text(url)
           print('Map proxy address: '+url)
           PY
-      - name: Deploy private tile proxy
+      - name: Deploy private data proxy
         run: npx --yes wrangler@4 deploy --config cloudflare/vworld/wrangler.jsonc --secrets-file "$RUNNER_TEMP/vworld-worker-secrets.json"
-      - name: Verify private map proxy
+      - name: Verify private vector data
         run: |
           python - <<'PY'
           import pathlib,urllib.request,urllib.error,time,json
           base=pathlib.Path('proxy-url.txt').read_text().strip()
-          for attempt in range(6):
+          headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
+          report={'proxy':base,'mode':'data','layers':{}}
+          for attempt in range(3):
               try:
-                  health=urllib.request.Request(base+'/health',headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'})
-                  with urllib.request.urlopen(health,timeout=20) as r:
-                      if not json.load(r).get('ready'):raise RuntimeError('Missing VWorld server secret')
-                  tile=urllib.request.Request(base+'/tiles/16/55800/25300.png',headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'})
-                  with urllib.request.urlopen(tile,timeout=25) as r:
-                      data=r.read()
-                      if not data.startswith(bytes([137,80,78,71,13,10,26,10])):raise RuntimeError('Invalid PNG')
-                  print('VWORLD_PROXY_VERIFIED '+base+' PNG '+str(len(data))+' bytes')
+                  with urllib.request.urlopen(urllib.request.Request(base+'/health',headers=headers),timeout=20) as r:
+                      health=json.load(r)
+                      if not health.get('ready') or health.get('mode')!='data':raise RuntimeError('Data service not ready')
+                  print('PRIVATE_DATA_PROXY_HEALTH_READY')
+                  for kind in ['buildings','roads']:
+                      path='/data/'+kind+'?bbox=126.978,37.565,126.980,37.567'
+                      with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers),timeout=25) as r:data=json.load(r)
+                      if data.get('type')!='FeatureCollection':raise RuntimeError('Invalid vector response')
+                      features=data['features']
+                      report['layers'][kind]={'count':len(features),'total':data.get('total'),'geometryTypes':sorted(set(f['geometry']['type'] for f in features)),'fields':sorted(set(k for f in features for k in (f.get('properties') or {})))}
+                  pathlib.Path('vworld-data-validation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+                  print('VWORLD_DATA_VERIFIED '+json.dumps(report,ensure_ascii=False))
                   break
               except urllib.error.HTTPError as e:
-                  body=e.read(2048).decode('utf-8','replace')
-                  try:reason=json.loads(body).get('error','unknown')
-                  except:reason='Non-JSON response: '+body[:200]
-                  print('Proxy HTTP diagnostic:',e.code,reason)
-                  if attempt==5:raise SystemExit('Proxy HTTP verification failed')
+                  try:reason=json.load(e).get('error','unknown')
+                  except:reason='Non-JSON error'
+                  print('Data HTTP diagnostic:',e.code,reason)
+                  if attempt==2:raise SystemExit('VWorld data verification failed')
                   time.sleep(5)
               except Exception as e:
-                  if attempt==5:raise SystemExit('Map proxy verification failed: '+str(e))
+                  if attempt==2:raise SystemExit('Data verification failed: '+str(e))
                   time.sleep(5)
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vworld-proxy-address
-          path: proxy-url.txt
-      - name: Diagnose provider connectivity
-        if: failure()
-        env:
-          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
-        run: |
-          python - <<'PY'
-          import os,urllib.request,urllib.error
-          key=os.environ['VWORLD_API_KEY'].strip()
-          url='https://api.vworld.kr/req/wmts/1.0.0/'+key+'/Base/16/25300/55800.png'
-          req=urllib.request.Request(url,headers={'Referer':'https://yohyeseong.github.io/','Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (compatible; ContaStudio/1.0)'})
-          try:
-              with urllib.request.urlopen(req,timeout=25) as r:
-                  body=r.read(8192)
-                  print('Provider direct diagnostic:',r.status,'PNG' if body.startswith(bytes([137,80,78,71,13,10,26,10])) else 'non-PNG')
-          except urllib.error.HTTPError as e:print('Provider direct diagnostic HTTP:',e.code)
-          except Exception as e:print('Provider direct connection type:',type(e).__name__)
-          PY
+          name: vworld-data-validation
+          path: |
+            proxy-url.txt
+            vworld-data-validation.json
       - name: Remove temporary secret
         if: always()
         run: rm -f -- "$RUNNER_TEMP/vworld-worker-secrets.json"
