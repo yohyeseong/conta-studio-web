@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import worker from './worker.mjs';
+const origin='https://yohyeseong.github.io',key='test-private-key';
+const request=(path,headers={Origin:origin})=>new Request('https://example.workers.dev'+path,{headers});
+assert.equal((await worker.fetch(request('/tiles/16/55800/25300.png',{}),{VWORLD_API_KEY:key})).status,403);
+assert.equal((await worker.fetch(request('/tiles/16/1/1.png'),{VWORLD_API_KEY:key})).status,404);
+assert.equal((await worker.fetch(request('/tiles/16/55800/25300.png?url=example.com'),{VWORLD_API_KEY:key})).status,404);
+assert.equal((await worker.fetch(request('/tiles/16/55800/25300.png'),{})).status,503);
+let calls=0;globalThis.fetch=async(url,options)=>{calls++;assert.match(url,/api\.vworld\.kr\/req\/wmts\/1\.0\.0\/test-private-key\/Base\/16\/25300\/55800\.png$/);assert.equal(options.headers.Referer,origin+'/');return new Response(new Uint8Array([137,80,78,71,13,10,26,10,0]),{headers:{'Content-Type':'image/png','X-Secret':key}});};
+const success=await worker.fetch(request('/tiles/16/55800/25300.png'),{VWORLD_API_KEY:key});assert.equal(success.status,200);assert.equal(success.headers.get('X-Secret'),null);assert.equal(success.headers.get('Cache-Control'),'no-store');assert.equal(calls,1);
+globalThis.fetch=async()=>new Response('<error>'+key+'</error>',{headers:{'Content-Type':'text/xml'}});
+const rejected=await worker.fetch(request('/tiles/16/55800/25300.png'),{VWORLD_API_KEY:key});assert.equal(rejected.status,502);assert.equal((await rejected.text()).includes(key),false);
+globalThis.fetch=async()=>{throw Error('private '+key);};
+const failed=await worker.fetch(request('/tiles/16/55800/25300.png'),{VWORLD_API_KEY:key});assert.equal((await failed.text()).includes(key),false);
+console.log('Proxy validation passed: origin, coverage, request limits, PNG verification, key redaction.');

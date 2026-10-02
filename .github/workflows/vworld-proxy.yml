@@ -1,0 +1,51 @@
+name: VWorld private map proxy
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/vworld/**', '.github/workflows/vworld-proxy.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vworld-proxy
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node cloudflare/vworld/test.mjs
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare server-only secret
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os,json,pathlib
+          required=['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','VWORLD_API_KEY']
+          for name in required:
+              if not os.environ.get(name):raise SystemExit('Missing repository secret: '+name)
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'vworld-worker-secrets.json'
+          path.write_text(json.dumps({'VWORLD_API_KEY':os.environ['VWORLD_API_KEY']}))
+          path.chmod(0o600)
+          PY
+      - name: Deploy private tile proxy
+        run: npx --yes wrangler@4 deploy --config cloudflare/vworld/wrangler.jsonc --secrets-file "$RUNNER_TEMP/vworld-worker-secrets.json"
+      - name: Remove temporary secret
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/vworld-worker-secrets.json"
