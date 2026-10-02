@@ -1,0 +1,55 @@
+name: Verify web terrain generation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/web-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install browser check
+        run: |
+          npm install playwright@1.58.2
+          npx playwright install chromium
+      - name: Generate and export model
+        run: |
+          cat > check.cjs <<'JS'
+          const {chromium}=require('playwright');
+          const fs=require('fs');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+            const page=await browser.newPage({viewport:{width:1600,height:1000}});
+            const errors=[];page.on('pageerror',e=>errors.push(e.message));
+            await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=korea1',{waitUntil:'networkidle',timeout:120000});
+            await page.waitForFunction(()=>document.querySelector('#viewport canvas'),{timeout:30000});
+            const map=await page.locator('#map').boundingBox();
+            await page.locator('#select-mode').click();
+            await page.mouse.click(map.x+map.width/2-60,map.y+map.height/2-60);
+            await page.mouse.click(map.x+map.width/2+60,map.y+map.height/2+60);
+            await page.locator('#generate').click();
+            await page.waitForFunction(()=>!document.querySelector('#save').disabled,{timeout:240000});
+            const downloadPromise=page.waitForEvent('download');
+            await page.locator('#save').click();
+            const download=await downloadPromise;await download.saveAs('web-model.dae');
+            const xml=fs.readFileSync('web-model.dae','utf8');
+            if(!xml.includes('<COLLADA')||xml.length<10000)throw Error('Invalid export');
+            if(errors.length)throw Error(errors.join('\n'));
+            const result={status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:Buffer.byteLength(xml)};
+            fs.writeFileSync('web-validation.json',JSON.stringify(result,null,2));
+            await page.screenshot({path:'web-model.png',fullPage:true});
+            console.log(JSON.stringify(result));await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node check.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-model-validation
+          path: |
+            web-validation.json
+            web-model.png
+            web-model.dae
