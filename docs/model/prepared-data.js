@@ -1,4 +1,4 @@
-import {get,inKorea} from './korea-data.js?v=fix8';
+import {get,inKorea} from './korea-data.js?v=fix9';
 const ROOT='prepared/v2/',VERSION='4e05284bc04d8ff5-prepared2';
 export async function preparedData(bounds,kind='model',zoom=16){
  if(!inKorea(bounds))throw Error('전국 데이터 범위 밖입니다.');
@@ -7,7 +7,7 @@ export async function preparedData(bounds,kind='model',zoom=16){
  for(let x=Math.floor(w/step);x<=Math.floor(e/step);x++)for(let y=Math.floor(s/step);y<=Math.floor(n/step);y++)ids.push({id:x+'_'+y,column:String(kind==='map'?x:Math.floor(x/5))});
  if(ids.length>100)throw Error('선택 영역을 줄이거나 지도를 확대하세요.');
  const catalogs=new Map();await Promise.all([...new Set(ids.map(v=>v.column))].filter(c=>index.columns.includes(c)).map(async c=>{const value=await get(ROOT+kind+'-catalog/'+c+'.json');if(value.version!==VERSION)throw Error('가공 데이터 목록 불일치');catalogs.set(c,value);}));
- const features=new Map(),zones=new Map(),jobs=new Map();const lod=zoom<16?'overview':'detail';
+ const features=new Map(),zones=new Map(),jobs=new Map();const lod='detail';
  for(const v of ids){const catalog=catalogs.get(v.column);if(!catalog)continue;if(kind==='map'){const info=catalog.tiles[v.id]?.[lod];if(info)jobs.set(v.id,{path:'map/'+lod+'/'+v.id+'.json.gz',info});}else for(const id of catalog.tiles[v.id]||[]){const info=catalog.buckets[id];if(!info)throw Error('지역 도형 참조 누락');jobs.set(id,{path:'model/'+id+'.json.gz',info});}}
  if(jobs.size>150)throw Error('선택 지역의 도형이 너무 많습니다. 영역을 줄여주세요.');
  const tasks=[...jobs.values()],concurrency=kind==='model'?8:4;for(let i=0;i<tasks.length;i+=concurrency){const tiles=await Promise.all(tasks.slice(i,i+concurrency).map(v=>get(ROOT+v.path,v.info)));

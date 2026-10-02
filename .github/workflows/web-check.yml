@@ -26,13 +26,26 @@ jobs:
             let started=Date.now();let firstMapImageMs=null;page.on('response',r=>{if(r.url().includes('/map-preview/')&&r.status()===200&&firstMapImageMs===null)firstMapImageMs=Date.now()-started;});
             let preparedRequests=0,legacyRequests=0;page.context().on('request',r=>{if(r.url().includes('/korea-data/prepared/'))preparedRequests++;if(/\/korea-data\/(tiles|catalog)\//.test(r.url()))legacyRequests++;});
             const errors=[];page.on('pageerror',e=>errors.push(e.message));
-            await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix8',{waitUntil:'networkidle',timeout:120000});
-            for(let retry=0;retry<15;retry++){if(await page.evaluate(()=>document.querySelector('script[type="module"]').src.includes('fix8')))break;await page.waitForTimeout(5000);started=Date.now();firstMapImageMs=null;await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix8-'+retry,{waitUntil:'networkidle'});}
+            await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix9',{waitUntil:'networkidle',timeout:120000});
+            for(let retry=0;retry<15;retry++){if(await page.evaluate(()=>document.querySelector('script[type="module"]').src.includes('fix9')))break;await page.waitForTimeout(5000);started=Date.now();firstMapImageMs=null;await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=fix9-'+retry,{waitUntil:'networkidle'});}
             await page.waitForFunction(()=>document.querySelector('#viewport canvas'),null,{timeout:30000});
             await page.waitForFunction(()=>document.querySelector('.map-note')?.textContent.includes('전국 한국 OSM'),null,{timeout:120000});
             const fullMapMs=Date.now()-started;if(firstMapImageMs===null)throw Error('Startup map preview missing');
             await page.setViewportSize({width:1920,height:1080});await page.waitForTimeout(500);
             const aligned=await page.locator('.overlap-toggle').evaluate(el=>{const a=el.querySelector('input').getBoundingClientRect(),b=el.querySelector('span').getBoundingClientRect();return a.right<b.left&&Math.abs(a.top-b.top)<5;});if(!aligned)throw Error('Checkbox layout incorrect');
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15);});
+            await page.waitForFunction(async()=>{const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return s.ready&&s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth()&&s.buildings>50&&s.minorRoads>50;},null,{timeout:120000});
+            const detailedMap=await page.evaluate(async()=>({...((await window.contaMapReady).contaMapState)}));
+            await page.screenshot({path:'map-detail.png'});
+            await page.evaluate(()=>{window.mapBlankFrames=0;window.monitorMap=true;const tick=()=>{if(!window.monitorMap)return;const panes=[...document.querySelectorAll('.conta-map-content')];if(!panes.some(p=>getComputedStyle(p).opacity==='1'&&p.querySelector('canvas')))window.mapBlankFrames++;requestAnimationFrame(tick);};tick();});
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([35.1796,129.0756],16);});
+            await page.waitForTimeout(300);
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.545,126.977],15);});
+            await page.waitForTimeout(8000);
+            const stable=await page.evaluate(async()=>{window.monitorMap=false;const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return {blankFrames:window.mapBlankFrames,previewActive:s.previewActive,correctBounds:s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth()};});
+            if(stable.blankFrames||stable.previewActive||!stable.correctBounds)throw Error('Unstable map replacement: '+JSON.stringify(stable));
+            await page.evaluate(async()=>{const m=await window.contaMapReady;m.setView([37.5665,126.978],16);});
+            await page.waitForFunction(async()=>{const m=await window.contaMapReady,s=m.contaMapState,b=m.getBounds();return s.bounds[0]<=b.getWest()&&s.bounds[1]<=b.getSouth()&&s.bounds[2]>=b.getEast()&&s.bounds[3]>=b.getNorth();},null,{timeout:120000});
             const map=await page.locator('#map').boundingBox();
             for(let i=0;i<3;i++){await page.locator('.leaflet-control-zoom-in').click();await page.waitForTimeout(350);}
             await page.mouse.move(map.x+map.width/2-12,map.y+map.height/2-12);
@@ -54,7 +67,7 @@ jobs:
             const cached=await page.evaluate(async()=>{const cache=await caches.open('conta-korea-4e05284bc04d8ff5');return (await cache.keys()).length;});
             if(cached<3)throw Error('Regional persistent cache missing');
             const cachedPreparedFiles=await page.evaluate(async()=>{const cache=await caches.open('conta-korea-4e05284bc04d8ff5');const keys=await cache.keys();return keys.filter(r=>r.url.includes('/prepared/v2/')).length;});if(cachedPreparedFiles<3||legacyRequests!==0)throw Error('Preprocessed data path not used');
-            const result={preparedRequests,legacyRequests,cachedPreparedFiles,zoomedSmallRegion:await page.locator('#area').innerText(),overlapOptionApplied:true,firstMapImageMs,fullMapMs,cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:bytes.length,rhinoObjects,rhinoLayers};
+            const result={detailedMap,stable,preparedRequests,legacyRequests,cachedPreparedFiles,zoomedSmallRegion:await page.locator('#area').innerText(),overlapOptionApplied:true,firstMapImageMs,fullMapMs,cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:bytes.length,rhinoObjects,rhinoLayers};
             await page.context().route('**/korea-data/prepared/**',route=>route.abort());
             await page.context().route('**/terrarium/**',route=>route.abort());
             await page.reload({waitUntil:'networkidle'});
@@ -78,4 +91,5 @@ jobs:
           path: |
             web-validation.json
             web-model.png
+            map-detail.png
             web-model.3dm
