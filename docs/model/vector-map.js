@@ -1,4 +1,4 @@
-import {packedMap,world} from './packed-map.js?v=instant2';
+import {packedMap,world} from './packed-map.js?v=instant3';
 import {loadMap,inKorea} from './korea-data.js?v=packed2';
 import {cityMap} from './city-map.js?v=search-city1';
 const styles={1:['#a7abb1',1,'#d5d6d9'],2:['#e6b77f',5,'#d0d8e2'],3:['#e6b77f',2,'#d0d8e2'],4:['#80858b',2],5:['#8dc1dc',1,'#8dc1dc'],6:['#b2cba8',.5,'#d5e5cc'],7:['#d3bd9e',.5,'#e8dbc7']};
