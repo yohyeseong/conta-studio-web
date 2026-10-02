@@ -23,10 +23,13 @@ jobs:
           (async()=>{
             const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
             const page=await browser.newPage({viewport:{width:1600,height:1000}});
+            const started=Date.now();let firstMapImageMs=null;page.on('response',r=>{if(r.url().includes('/map-preview/')&&r.status()===200&&firstMapImageMs===null)firstMapImageMs=Date.now()-started;});
             const errors=[];page.on('pageerror',e=>errors.push(e.message));
-            await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=speed2',{waitUntil:'networkidle',timeout:120000});
-            for(let retry=0;retry<15;retry++){if(await page.evaluate(()=>document.querySelector('script[type="module"]').src.includes('speed2')))break;await page.waitForTimeout(5000);await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=speed2-'+retry,{waitUntil:'networkidle'});}
+            await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=map3',{waitUntil:'networkidle',timeout:120000});
+            for(let retry=0;retry<15;retry++){if(await page.evaluate(()=>document.querySelector('script[type="module"]').src.includes('map3')))break;await page.waitForTimeout(5000);await page.goto('https://yohyeseong.github.io/conta-studio-web/model/?check=map3-'+retry,{waitUntil:'networkidle'});}
             await page.waitForFunction(()=>document.querySelector('#viewport canvas'),null,{timeout:30000});
+            await page.waitForFunction(()=>document.querySelector('.map-note')?.textContent.includes('전국 한국 OSM'),null,{timeout:120000});
+            const fullMapMs=Date.now()-started;if(firstMapImageMs===null)throw Error('Startup map preview missing');
             const map=await page.locator('#map').boundingBox();
             await page.locator('#select-mode').click();
             await page.mouse.click(map.x+map.width/2-60,map.y+map.height/2-60);
@@ -41,7 +44,7 @@ jobs:
             if(errors.length)throw Error(errors.join('\n'));
             const cached=await page.evaluate(async()=>{const cache=await caches.open('conta-korea-4e05284bc04d8ff5');return (await cache.keys()).length;});
             if(cached<3)throw Error('Regional persistent cache missing');
-            const result={cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:Buffer.byteLength(xml)};
+            const result={firstMapImageMs,fullMapMs,cachedRegionalFiles:cached,status:await page.locator('#status').innerText(),info:await page.locator('#model-info').innerText(),exportBytes:Buffer.byteLength(xml)};
             fs.writeFileSync('web-validation.json',JSON.stringify(result,null,2));
             await page.screenshot({path:'web-model.png',fullPage:true});
             console.log(JSON.stringify(result));await browser.close();
