@@ -1,0 +1,62 @@
+name: Publish nationwide web data
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/korea-data.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: korea-data-export
+  cancel-in-progress: false
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract verified regional data
+        run: |
+          curl --fail --location --retry 3 "https://github.com/yohyeseong/conta-studio-web/releases/download/v1.1.0-rc.23/ContaStudio-1.1.0-rc.23-Full-Korea.zip" -o /tmp/full.zip
+          echo "9fd734c9d3188c6688441a0d46cb3fadcc3bada5c8fbdd44bda6a4e95d2e4fd1  /tmp/full.zip" | sha256sum --check
+          python - <<'PY'
+          import zipfile,pathlib,hashlib,json,shutil
+          with zipfile.ZipFile('/tmp/full.zip') as z:
+              z.extract('ContaStudio-1.1.0-rc.23-Setup.exe','/tmp')
+          prefix='ContaStudio/data/korea-tiles/'
+          out=pathlib.Path('/tmp/korea-web-data')
+          with zipfile.ZipFile('/tmp/ContaStudio-1.1.0-rc.23-Setup.exe') as z:
+              for info in z.infolist():
+                  if not info.filename.startswith(prefix) or info.is_dir():continue
+                  rel=pathlib.PurePosixPath(info.filename[len(prefix):])
+                  assert '..' not in rel.parts and not rel.is_absolute()
+                  target=out.joinpath(*rel.parts);target.parent.mkdir(parents=True,exist_ok=True)
+                  with z.open(info) as src,target.open('wb') as dst:shutil.copyfileobj(src,dst)
+          index=json.loads((out/'index.json').read_text())
+          count=0
+          for column in index['columns']:
+              catalog=json.loads((out/'catalog'/f'{column}.json').read_text())
+              for tile,info in catalog['tiles'].items():
+                  data=(out/'tiles'/f'{tile}.json.gz').read_bytes()
+                  assert len(data)==info['bytes'] and hashlib.sha256(data).hexdigest()==info['sha256']
+                  count+=1
+          assert count==14840
+          (out/'README.md').write_text('South Korea OSM regional data, 2026-09-18. OpenStreetMap contributors, ODbL 1.0. Exported from verified Conta Studio RC23 full distribution.\n')
+          print('Verified regional tiles:',count)
+          PY
+      - name: Publish data branch
+        run: |
+          git config user.name "Conta Studio deployment"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin korea-data; then
+            git fetch origin korea-data
+            git checkout -B korea-data origin/korea-data
+            git rm -rf --ignore-unmatch .
+          else
+            git checkout --orphan korea-data
+            git rm -rf --ignore-unmatch .
+          fi
+          cp -a /tmp/korea-web-data/. .
+          git add index.json catalog tiles README.md
+          git diff --cached --quiet || git commit -m "Publish verified nationwide OSM data 2026-09-18"
+          git -c pack.threads=2 push origin korea-data
