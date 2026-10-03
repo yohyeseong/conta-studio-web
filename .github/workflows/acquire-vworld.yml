@@ -25,8 +25,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      VWORLD_OUTPUT: ${{ runner.temp }}/vworld-cache
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -49,7 +47,7 @@ jobs:
           git checkout -B korea-data FETCH_HEAD
           python - <<'PY'
           import pathlib,json,shutil,os
-          source=pathlib.Path(os.environ['VWORLD_OUTPUT']);target=pathlib.Path('supplemental/vworld-v1');target.mkdir(parents=True,exist_ok=True)
+          source=pathlib.Path(os.environ['RUNNER_TEMP'])/'vworld-cache';target=pathlib.Path('supplemental/vworld-v1');target.mkdir(parents=True,exist_ok=True)
           new=json.loads((source/'index.json').read_text())
           if (target/'index.json').exists():
               old=json.loads((target/'index.json').read_text())

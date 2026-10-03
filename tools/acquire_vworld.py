@@ -131,7 +131,7 @@ def main():
             if str(e).startswith('Provider HTTP'):break
     if domain is None:raise AcquisitionError('VWorld download not verified; no source switch published')
     zones=privacy_zones(bounds)
-    out=Path(os.environ.get('VWORLD_OUTPUT','/tmp/vworld-cache'));out.mkdir(parents=True,exist_ok=True)
+    out=Path(os.environ.get('VWORLD_OUTPUT',str(Path(os.environ.get('RUNNER_TEMP','/tmp'))/'vworld-cache')));out.mkdir(parents=True,exist_ok=True)
     version='vworld-prepared-v1';date=datetime.datetime.now(datetime.timezone.utc).date().isoformat();tiles={};counts={'buildings':0,'roads':0}
     for x in range(math.floor(bounds[0]/STEP),math.ceil(bounds[2]/STEP)):
         for y in range(math.floor(bounds[1]/STEP),math.ceil(bounds[3]/STEP)):
