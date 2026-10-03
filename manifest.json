@@ -1,0 +1,25 @@
+{
+  "source": "350c375aebf0a865c54aeb9e0adc37d1eb0d17f7",
+  "files": {
+    "LICENSE-rhino3dm.txt": {
+      "bytes": 1083,
+      "sha256": "f57a154acc534312b7e7b2bff29748bcef5e1202713b891759a027f7c015f0bd"
+    },
+    "trimmed-smoke.3dm": {
+      "bytes": 14831,
+      "sha256": "880da9743eb5a0413203292d88ac3c57fc4a1d90b021ca8a911144477817db40"
+    },
+    "LICENSE-opennurbs.txt": {
+      "bytes": 2191,
+      "sha256": "de437cd429817f50999710543b9d3e743b17b35b4c96842393b9d39f7bb9b3bd"
+    },
+    "terrain-cad.js": {
+      "bytes": 127672,
+      "sha256": "cd65f603f63849b95e0052db62508b327453eeb3541ed61ea1e0e927c056b620"
+    },
+    "terrain-cad.wasm": {
+      "bytes": 2662691,
+      "sha256": "c9a90b22ab7077eea8c10f40e510ef2213b8d6a7a0e2941619071bfb23979f15"
+    }
+  }
+}
