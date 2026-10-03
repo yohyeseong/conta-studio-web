@@ -1,0 +1,59 @@
+name: Acquire and store VWorld vector data
+on:
+  push:
+    branches: [main]
+    paths: ['tools/acquire_vworld.py', '.github/workflows/acquire-vworld.yml']
+  workflow_dispatch:
+    inputs:
+      bounds:
+        description: 'West,south,east,north bounds to acquire'
+        default: '126.975,37.565,126.985,37.575'
+permissions:
+  contents: write
+concurrency:
+  group: prepared-korea-data
+  cancel-in-progress: false
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download complete pages and screen model data
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+          VWORLD_BOUNDS: ${{ inputs.bounds || '126.975,37.565,126.985,37.575' }}
+        run: python tools/acquire_vworld.py
+      - name: Store verified region data
+        run: |
+          git config user.name "Conta Studio data preparation"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config remote.origin.promisor true
+          git config remote.origin.partialclonefilter blob:none
+          git fetch --filter=blob:none --depth=1 origin korea-data
+          git sparse-checkout init --cone
+          git sparse-checkout set supplemental/vworld-v1
+          git checkout -B korea-data FETCH_HEAD
+          python - <<'PY'
+          import pathlib,json,shutil
+          source=pathlib.Path('/tmp/vworld-cache');target=pathlib.Path('supplemental/vworld-v1');target.mkdir(parents=True,exist_ok=True)
+          new=json.loads((source/'index.json').read_text())
+          if (target/'index.json').exists():
+              old=json.loads((target/'index.json').read_text())
+              assert old['version']==new['version'] and old['safeOnly']
+              new['tiles']={**old['tiles'],**new['tiles']}
+          shutil.copytree(source/'tiles',target/'tiles',dirs_exist_ok=True)
+          (target/'index.json').write_text(json.dumps(new,ensure_ascii=False,separators=(',',':')))
+          PY
+          git add supplemental/vworld-v1
+          if ! git diff --cached --quiet; then
+            git commit -m "Store verified VWorld building and road cache"
+            git push origin korea-data
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vworld-prepared-report
+          path: /tmp/vworld-cache/index.json
