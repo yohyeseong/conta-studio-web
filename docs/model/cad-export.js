@@ -46,3 +46,11 @@ function cadTerrain(r,terrain,factor,add){
   finally{if(bottom)bottom.delete();boundary.delete();}
  }finally{surface.delete();}
 }
+
+function cadCover(r,terrain,polygons,factor,add,name){
+ const clean=terrainPolygons(polygons);if(!clean.length)return;
+ const points=terrain.points.map(p=>[p[0],p[1],p[2]+.025]);
+ const brep=r.createTerrainBrep({...terrain,points,polygons:clean,factor});
+ if(!brep||!brep.isValid){if(brep)brep.delete();throw Error(name+' 경계 면 검증에 실패했습니다.');}
+ try{add(brep,name);}finally{brep.delete();}
+}

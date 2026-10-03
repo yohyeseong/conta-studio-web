@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=cad1');
+importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=cad2');
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
  try{return polygonClipping[name](...args);}catch(original){for(const scale of [1000,100]){try{return polygonClipping[name](...args.map(a=>rounded(a,scale)));}catch{}}throw original;}
@@ -23,7 +23,7 @@ for(const k in covers)covers[k]=unionAll(covers[k]);
 const builtArea=unionAll(buildings.map(b=>[b.poly]));if(covers['녹지'].length)covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);
 
 const mask=unionAll(Object.values(covers)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
-const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},buildings:[]};
+const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
 const bounds={};for(const k in covers)bounds[k]=covers[k].map(p=>{const coords=p[0];return {p,x0:Math.min(...coords.map(c=>c[0])),x1:Math.max(...coords.map(c=>c[0])),y0:Math.min(...coords.map(c=>c[1])),y1:Math.max(...coords.map(c=>c[1]))};});
 for(let j=0;j<n;j++){for(let i=0;i<n;i++){const x=-w/2+i*dx,y=-h/2+j*dy;const a=[x,y],b=[x+dx,y],c=[x+dx,y+dy],e=[x,y+dy];const cell=[[[...a],[...b],[...c],[...e],[...a]]];const local=Object.fromEntries(Object.keys(covers).map(k=>{const near=bounds[k].filter(v=>v.x1>=x&&v.x0<=x+dx&&v.y1>=y&&v.y0<=y+dy);return [k,near.length?pc.intersection(cell,near.map(v=>v.p)).map(p=>({p})):[]];}));const localPolys=Object.values(local).flat().map(v=>v.p);const mask=localPolys.length?pc.union(localPolys):[];for(const t of [[a,b,c,a],[a,c,e,a]]){const polygon=[t];for(const p of d.cutGround!==false&&mask.length?pc.difference(polygon,mask):[polygon])face('대지',p,z);for(const k in covers){const near=local[k];if(near.length)for(const p of pc.intersection(polygon,near.map(v=>v.p)))face(k,p,(x,y)=>z(x,y)+.025);}
