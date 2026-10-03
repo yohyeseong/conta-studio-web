@@ -23,7 +23,7 @@ jobs:
           python tools/terrain-cad/patch_sdk.py sdk tools/terrain-cad/terrain_binding.inc
       - name: Compile browser CAD runtime
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo/sdk emscripten/emsdk:3.1.30 bash -lc 'python3 script/setup.py --platform js && emmake make -C src/build/javascript/draco_wasm -j2 && emmake make -C src/build/javascript -j2'
+          docker run --rm -v "$PWD:/repo" -w /repo/sdk emscripten/emsdk:5.0.7 bash -lc 'python3 script/setup.py --platform js && emmake make -C src/build/javascript/draco_wasm draco_static -j2 && emmake make -C src/build/javascript rhino3dm -j2'
           mkdir -p runtime
           cp sdk/src/build/javascript/rhino3dm.js runtime/terrain-cad.js
           cp sdk/src/build/javascript/rhino3dm.wasm runtime/terrain-cad.wasm
