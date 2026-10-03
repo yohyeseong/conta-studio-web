@@ -20,6 +20,11 @@ def http(url):
     except urllib.error.HTTPError as e:raise AcquisitionError('Provider HTTP '+str(e.code)) from None
     except (TimeoutError,urllib.error.URLError):raise AcquisitionError('Provider connection failed') from None
 def data_json(path):return json.loads(http(DATA+path))
+def provider_json(data):
+    for encoding in ['utf-8-sig','cp949']:
+        try:return json.loads(data.decode(encoding))
+        except (UnicodeDecodeError,json.JSONDecodeError):pass
+    raise AcquisitionError('Provider returned invalid JSON encoding')
 def overlaps(a,b):return a[0]<=b[2] and a[2]>=b[0] and a[1]<=b[3] and a[3]>=b[1]
 def privacy_zones(bounds):
     index=data_json(PREP+'index.json')
@@ -47,11 +52,18 @@ def privacy_zones(bounds):
 def query(kind,bounds,page,domain):
     params={'service':'data','version':'2.0','request':'GetFeature','format':'json','size':'1000','page':str(page),'data':KINDS[kind],'geometry':'true','attribute':'true','crs':'EPSG:4326','geomFilter':'BOX('+','.join(map(str,bounds))+')','domain':domain,'key':KEY}
     try:
-        document=json.loads(http('https://api.vworld.kr/req/data?'+urllib.parse.urlencode(params)))
+        url='https://api.vworld.kr/req/data?'+urllib.parse.urlencode(params)
+        for attempt in range(3):
+            try:
+                document=provider_json(http(url));break
+            except AcquisitionError:
+                if attempt==2:raise
+                time.sleep(2)
         value=document.get('response',{}) if isinstance(document,dict) else {}
     except json.JSONDecodeError:raise AcquisitionError('Provider returned non-JSON') from None
     if not isinstance(value,dict):raise AcquisitionError('Invalid provider response envelope')
-    print('VWORLD_RESPONSE '+json.dumps({'status':value.get('status'),'record':value.get('record'),'error_code':(value.get('error') or {}).get('code'),'keys':list(value)}),flush=True)
+    record=value.get('record') or {}
+    print('VWORLD_RESPONSE '+json.dumps({'status':value.get('status'),'total':record.get('total'),'error_code':(value.get('error') or {}).get('code')}),flush=True)
     if value.get('status')=='NOT_FOUND':return [],0
     if value.get('status')!='OK':
         code=str(value.get('error',{}).get('code','UNKNOWN'))
