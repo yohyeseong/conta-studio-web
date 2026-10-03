@@ -84,6 +84,6 @@ static BND_Brep* ContaTerrain(emscripten::val data)
     }
   }
   brep->SetTrimIsoFlags();brep->Compact();
-  if(!brep->IsValid()){delete brep;return nullptr;}
+  ON_wString diagnostic;ON_TextLog log(diagnostic);if(!brep->IsValid(&log)){fprintf(stderr,"Conta terrain: %ls\\n",static_cast<const wchar_t*>(diagnostic));delete brep;return nullptr;}
   return new BND_Brep(brep,nullptr);
 }
