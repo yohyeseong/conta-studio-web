@@ -15,8 +15,18 @@ concurrency:
   cancel-in-progress: false
 jobs:
   acquire:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    env:
+      VWORLD_OUTPUT: ${{ runner.temp }}/vworld-cache
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -38,8 +48,8 @@ jobs:
           git sparse-checkout set supplemental/vworld-v1
           git checkout -B korea-data FETCH_HEAD
           python - <<'PY'
-          import pathlib,json,shutil
-          source=pathlib.Path('/tmp/vworld-cache');target=pathlib.Path('supplemental/vworld-v1');target.mkdir(parents=True,exist_ok=True)
+          import pathlib,json,shutil,os
+          source=pathlib.Path(os.environ['VWORLD_OUTPUT']);target=pathlib.Path('supplemental/vworld-v1');target.mkdir(parents=True,exist_ok=True)
           new=json.loads((source/'index.json').read_text())
           if (target/'index.json').exists():
               old=json.loads((target/'index.json').read_text())
@@ -55,5 +65,5 @@ jobs:
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: vworld-prepared-report
-          path: /tmp/vworld-cache/index.json
+          name: vworld-prepared-report-${{ matrix.os }}
+          path: ${{ runner.temp }}/vworld-cache/index.json

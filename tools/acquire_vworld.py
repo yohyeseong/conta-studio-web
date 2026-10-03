@@ -1,5 +1,5 @@
 """Acquire complete VWorld pages privately; publish only screened model attributes."""
-import datetime,functools,gzip,hashlib,json,math,os,re,sys,time,urllib.request,urllib.error,urllib.parse
+import datetime,functools,gzip,hashlib,http.client,json,math,os,re,ssl,sys,time,urllib.request,urllib.error,urllib.parse
 from pathlib import Path
 KEY=os.environ.get('VWORLD_API_KEY','').strip()
 ORIGIN='https://yohyeseong.github.io'
@@ -18,7 +18,7 @@ def http(url):
         if len(b)>12000000:raise AcquisitionError('Provider response too large')
         return b
     except urllib.error.HTTPError as e:raise AcquisitionError('Provider HTTP '+str(e.code)) from None
-    except (TimeoutError,urllib.error.URLError):raise AcquisitionError('Provider connection failed') from None
+    except (TimeoutError,urllib.error.URLError,http.client.HTTPException,ConnectionError,ssl.SSLError):raise AcquisitionError('Provider connection failed') from None
 def data_json(path):return json.loads(http(DATA+path))
 def provider_json(data):
     for encoding in ['utf-8-sig','cp949']:
