@@ -1,0 +1,49 @@
+name: Build native CAD runtime
+on:
+  push:
+    branches: [main]
+    paths: ['tools/terrain-cad/**', '.github/workflows/cad-runtime.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: cad-runtime
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get pinned open-source CAD library
+        run: |
+          git clone https://github.com/mcneel/rhino3dm.git sdk
+          git -C sdk checkout 350c375aebf0a865c54aeb9e0adc37d1eb0d17f7
+          git -C sdk submodule update --init --recursive
+          python tools/terrain-cad/patch_sdk.py sdk tools/terrain-cad/terrain_binding.inc
+      - name: Compile browser CAD runtime
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo/sdk emscripten/emsdk:3.1.30 bash -lc 'python3 script/setup.py --platform js && emmake make -C src/build/javascript/draco_wasm -j2 && emmake make -C src/build/javascript -j2'
+          mkdir -p runtime
+          cp sdk/src/build/javascript/rhino3dm.js runtime/terrain-cad.js
+          cp sdk/src/build/javascript/rhino3dm.wasm runtime/terrain-cad.wasm
+          cp sdk/LICENSE runtime/LICENSE-rhino3dm.txt
+          cp sdk/src/lib/opennurbs/LICENSE runtime/LICENSE-opennurbs.txt
+      - name: Validate trimmed CAD surface
+        run: node tools/terrain-cad/smoke.cjs
+      - name: Publish verified runtime branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import pathlib,json,hashlib
+          root=pathlib.Path('runtime');files={p.name:{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in root.iterdir() if p.is_file()}
+          (root/'manifest.json').write_text(json.dumps({'source':'350c375aebf0a865c54aeb9e0adc37d1eb0d17f7','files':files},indent=2)+'\n')
+          PY
+          cd runtime
+          git init
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add .
+          git commit -m 'Verified native trimmed NURBS CAD runtime'
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:cad-runtime
