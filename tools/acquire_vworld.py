@@ -46,8 +46,12 @@ def privacy_zones(bounds):
     return zones
 def query(kind,bounds,page,domain):
     params={'service':'data','version':'2.0','request':'GetFeature','format':'json','size':'1000','page':str(page),'data':KINDS[kind],'geometry':'true','attribute':'true','crs':'EPSG:4326','geomFilter':'BOX('+','.join(map(str,bounds))+')','domain':domain,'key':KEY}
-    try:value=json.loads(http('https://api.vworld.kr/req/data?'+urllib.parse.urlencode(params))).get('response',{})
+    try:
+        document=json.loads(http('https://api.vworld.kr/req/data?'+urllib.parse.urlencode(params)))
+        value=document.get('response',{}) if isinstance(document,dict) else {}
     except json.JSONDecodeError:raise AcquisitionError('Provider returned non-JSON') from None
+    if not isinstance(value,dict):raise AcquisitionError('Invalid provider response envelope')
+    print('VWORLD_RESPONSE '+json.dumps({'status':value.get('status'),'record':value.get('record'),'error_code':(value.get('error') or {}).get('code'),'keys':list(value)}),flush=True)
     if value.get('status')=='NOT_FOUND':return [],0
     if value.get('status')!='OK':
         code=str(value.get('error',{}).get('code','UNKNOWN'))
@@ -140,4 +144,7 @@ def main():
 if __name__=='__main__':
     try:main()
     except AcquisitionError as e:print('ACQUISITION_FAILED: '+str(e));sys.exit(1)
-    except Exception:print('ACQUISITION_FAILED: Invalid provider or screening response');sys.exit(1)
+    except Exception as e:
+        import traceback
+        print('ACQUISITION_FAILED: '+type(e).__name__+' at lines '+','.join(str(v.lineno) for v in traceback.extract_tb(e.__traceback__)))
+        sys.exit(1)
