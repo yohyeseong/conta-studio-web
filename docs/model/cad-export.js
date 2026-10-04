@@ -16,6 +16,10 @@ function cadBuilding(r,building,factor){
 }
 
 function cadTerrain(r,terrain,factor,add){
+ if(terrain.bands){
+  for(const band of terrain.bands)for(const poly of band.polygons){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level},factor);try{add(solid,'대지 · 계단 '+band.level+'m');}finally{solid.delete();}}
+  return;
+ }
  terrain={...terrain,polygons:terrainPolygons(terrain.polygons)};
  const {count,points,w,h,base}=terrain;
  const surface=r.NurbsSurface.create(3,false,4,4,count,count);
@@ -48,9 +52,15 @@ function cadTerrain(r,terrain,factor,add){
 }
 
 function cadCover(r,terrain,polygons,factor,add,name){
+ if(terrain.bands){
+  for(const band of terrain.bands){const polys=band.covers[name];if(!polys?.length)continue;
+   cadCover(r,{...terrain,bands:null,points:terrain.points.map(p=>[p[0],p[1],band.level])},polys,factor,add,name);
+  }return;
+ }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
  const points=terrain.points.map(p=>[p[0],p[1],p[2]+.025]);
  const brep=r.createTerrainBrep({...terrain,points,polygons:clean,factor});
  if(!brep||!brep.isValid){if(brep)brep.delete();throw Error(name+' 경계 면 검증에 실패했습니다.');}
  try{add(brep,name);}finally{brep.delete();}
 }
+
