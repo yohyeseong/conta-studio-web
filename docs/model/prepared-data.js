@@ -1,7 +1,7 @@
-import {addOfficialDetails} from './official-details.js?v=source-fast4';
-import {officialFeatures} from './official-packed.js?v=source-fast4';
-import {packedModel} from './model-packed.js?v=source-fast4';
-import {inKorea} from './korea-data.js?v=source-fast4';
+import {addOfficialDetails} from './official-details.js?v=source-fast5';
+import {officialFeatures} from './official-packed.js?v=source-fast5';
+import {packedModel} from './model-packed.js?v=source-fast5';
+import {inKorea} from './korea-data.js?v=source-fast5';
 export async function preparedData(bounds,kind='model',zoom=16,onProgress=()=>{}){
  if(kind==='map')return {preparedGeo:await (await import('./map-grid.js?v=packed2')).mapGrid(bounds)};
  if(!inKorea(bounds))throw Error('전국 데이터 범위 밖입니다.');
