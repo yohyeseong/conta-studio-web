@@ -24,12 +24,12 @@ if(d.coast) covers['바다']=pc.difference(rect,d.coast.map(r=>[r.map(xy)]));
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);}
-if(stepped){let occupied=[];for(const name of ['철도','도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
+if(stepped){let occupied=[];for(const name of ['도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
 const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
 if(stepped)cad.terrain.bands=makeSteps();
-function coverOffset(name){return .025-(d.lowerStep&&['도로','하천','바다'].includes(name)?interval:0);}
+function coverOffset(name){return (name==='철도'?.05:.025)-(d.lowerStep&&['도로','하천','바다'].includes(name)?interval:0);}
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
 // Triangulate validated layer boundaries once; clip convex triangles with linear arithmetic.
 function makeSteps(){
@@ -83,4 +83,3 @@ if(d.parapet){
 const contours=group('등고선');const unique=new Map();for(let i=0;i<contours.positions.length;i+=6){const a=contours.positions.slice(i,i+3),b=contours.positions.slice(i+3,i+6),ka=a.map(v=>Math.round(v*10000)).join(','),kb=b.map(v=>Math.round(v*10000)).join(',');if(ka!==kb)unique.set(ka<kb?ka+'|'+kb:kb+'|'+ka,[...a,...b]);}contours.positions=[...unique.values()].flat();
 counts['대지']=stepped?cad.terrain.bands.length:1;counts['등고선']=Math.floor(group('등고선').positions.length/6);return {groups:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,{...v,positions:new Float32Array(v.positions)}])),counts,estimated,skipped,z0,cad};}
 onmessage=e=>{activeRequestId=e.data.id;try{if(!e.data.osm.preparedGeo&&typeof osmtogeojson==='undefined')importScripts('vendor/osmtogeojson.js');const result=makeModel(e.data);postMessage({id:e.data.id,result},Object.values(result.groups).map(g=>g.positions.buffer));}catch(error){postMessage({id:e.data.id,error:String(error.message||error)});}};
-

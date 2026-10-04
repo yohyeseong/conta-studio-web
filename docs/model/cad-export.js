@@ -59,9 +59,8 @@ function cadCover(r,terrain,polygons,factor,add,name){
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
- const points=terrain.points.map(p=>[p[0],p[1],p[2]+.025-(terrain.lowerStep&&['도로','하천','바다'].includes(name)?terrain.interval:0)]);
+ const points=terrain.points.map(p=>[p[0],p[1],p[2]+(name==='철도'?.05:.025)-(terrain.lowerStep&&['도로','하천','바다'].includes(name)?terrain.interval:0)]);
  const brep=r.createTerrainBrep({...terrain,points,polygons:clean,factor});
  if(!brep||!brep.isValid){if(brep)brep.delete();throw Error(name+' 경계 면 검증에 실패했습니다.');}
  try{add(brep,name);}finally{brep.delete();}
 }
-
