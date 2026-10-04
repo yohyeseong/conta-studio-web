@@ -21,7 +21,7 @@ if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes(
 }catch{skipped++;}}
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
-const builtArea=unionAll(buildings.map(b=>[b.poly]));if(covers['녹지'].length)covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);
+if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);}
 
 const mask=unionAll(Object.values(covers)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};

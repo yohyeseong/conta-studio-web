@@ -34,7 +34,7 @@ async function tile(px,py,key,parent,info){
    else if(response.status!==206||response.headers.get('Content-Range')!=='bytes '+info.offset+'-'+(info.offset+info.bytes-1)+'/'+parent.bytes)throw Error('공식 타일 범위 불일치');
   }
   if(packed.byteLength!==info.bytes||hex(await crypto.subtle.digest('SHA-256',packed))!==info.sha256)throw Error('공식 타일 검증 실패');
-  if(disk&&!cached)await disk.put(url,new Response(packed)).then(async()=>{const keys=await disk.keys();for(const old of keys.slice(0,Math.max(0,keys.length-128)))await disk.delete(old);}).catch(()=>{});
+  if(disk&&!cached)disk.put(url,new Response(packed)).then(async()=>{const keys=await disk.keys();for(const old of keys.slice(0,Math.max(0,keys.length-128)))await disk.delete(old);}).catch(()=>{});
   const raw=await new Response(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();if(raw.byteLength!==info.rawBytes)throw Error('공식 타일 크기 불일치');const features=decodeTile(raw);if(features.length!==info.features)throw Error('공식 타일 건수 불일치');return features;
  })();memo.set(cacheKey,job);try{const result=await job;if(memo.size>100){const old=[...memo.keys()].find(k=>k.startsWith('tile/')&&k!==cacheKey);if(old)memo.delete(old);}return result;}catch(e){memo.delete(cacheKey);throw e;}
 }
@@ -47,3 +47,6 @@ export async function officialFeatures(bounds,zones=[]){
  return [...all.values()];
 }
 export async function officialMetadata(bounds){const index=await json('index.json');if(index.version!==VERSION||!index.safeOnly||!index.complete)throw Error('공식 자료 목록 불일치');const columns=new Set();for(let x=Math.floor(bounds[0]/.05);x<=Math.floor(bounds[2]/.05);x++)columns.add(String(x));await Promise.all([...columns].filter(c=>index.columns.includes(c)).map(c=>json(c+'.json')));}
+
+// Begin the shared catalog request while the map and interface initialize.
+json('index.json').catch(()=>{});

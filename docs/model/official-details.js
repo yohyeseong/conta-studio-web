@@ -1,5 +1,5 @@
 import './vendor/polygon-clipping.js';
-import {officialFeatures,VERSION} from './official-packed.js?v=model-fast2';
+import {officialFeatures,VERSION} from './official-packed.js?v=model-fast3';
 const overlap=(a,b)=>a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
 const multi=f=>f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
 function area(polys){let total=0;for(const p of polys)for(let i=0;i<p.length;i++){let value=0;for(let j=1;j<p[i].length;j++)value+=p[i][j-1][0]*p[i][j][1]-p[i][j][0]*p[i][j-1][1];total+=(i?-1:1)*Math.abs(value)/2;}return total;}

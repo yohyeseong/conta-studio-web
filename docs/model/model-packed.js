@@ -15,3 +15,6 @@ async function tile(c){const {key,info,parent,px,py}=c,cacheKey='tile/'+key;if(m
 export async function packedModel(bounds,onProgress=()=>{}){onProgress('선택 영역의 건물·도로 자료 확인 중',12);const {index,jobs}=await modelMetadata(bounds),features=new Map(),zones=new Map();let done=0;
  for(let i=0;i<jobs.length;i+=6){const values=await Promise.all(jobs.slice(i,i+6).map(async c=>{const v=await tile(c);onProgress(`주변 자료 수신 중 (${++done}/${jobs.length})`,15+Math.round(done/jobs.length*30));return v;}));for(const v of values){for(const z of v.zones)if(overlap(z,bounds))zones.set(z.join(','),z);for(const f of v.features)if(overlap(f.bbox,bounds))features.set(String(f.id),f);}}
  return {preparedGeo:{type:'FeatureCollection',features:[...features.values()]},zones:[...zones.values()],dataVersion:VERSION,officialRoadVersion:index.officialRoadVersion};}
+
+// Begin the shared catalog request while the map and interface initialize.
+json('index.json').catch(()=>{});

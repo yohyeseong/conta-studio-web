@@ -1,5 +1,5 @@
 let elevationPending;function elevationIndex(){return elevationPending||=(fetch('https://conta-model-data.conta-studio-yohyeseong.workers.dev/elevation/glo30-2021/index.json',{signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('고도 자료 목록 수신 실패 ('+r.status+')');return r.json();}).catch(e=>{elevationPending=null;throw e;}));}
-import {get,inKorea} from './korea-data.js?v=model-fast2';
+import {get,inKorea} from './korea-data.js?v=model-fast3';
 const ROOT='elevation/glo30-2021/',BASE='https://conta-model-data.conta-studio-yohyeseong.workers.dev/';
 export async function elevationPlan(bounds,jobs,zoom=12){
  if(inKorea(bounds)){
@@ -9,3 +9,5 @@ export async function elevationPlan(bounds,jobs,zoom=12){
  }
  return {name:'Mapzen · 기본 고도',tiles:new Map(jobs.map(([x,y])=>[x+','+y,{url:`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${x}/${y}.png`}]))};
 }
+
+elevationIndex().catch(()=>{});
