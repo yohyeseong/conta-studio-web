@@ -18,7 +18,6 @@ function buildRhinoFile(rhino,items,scale,cad){
     const add=(brep,name)=>{attr.name=name;doc.objects().addBrep(brep,attr);expected++;};
     if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
-    else if(item.name==='고가도로'){for(const deck of cad.bridges||[]){for(const poly of deck.flatPolygons||[]){const solid=cadBuilding(rhino,{poly,bottom:deck.bottom,roof:deck.roof},factor);try{add(solid,'고가도로 · 연결 상판 (높이 추정)');}finally{solid.delete();}}const p=deck.rampPositions||deck.positions;for(let i=0;i<p.length;i+=9){const [ax,ay,az,bx,by,bz,cx,cy,cz]=Array.from(p.slice(i,i+9)),den=(bx-ax)*(cy-ay)-(cx-ax)*(by-ay);if(den<=1e-8)continue;const a=((bz-az)*(cy-ay)-(cz-az)*(by-ay))/den,b=((bx-ax)*(cz-az)-(cx-ax)*(bz-az))/den,roof=az-a*ax-b*ay,solid=cadBuilding(rhino,{poly:[[[ax,ay],[bx,by],[cx,cy],[ax,ay]]],bottom:roof-deck.thickness,roof},factor),transform=new rhino.Transform(1);try{transform.m20=a;transform.m21=b;if(!solid.transform(transform)||!solid.isValid||!solid.isSolid)throw Error('고가도로 연결 상판 검증 실패');add(solid,'고가도로 · 연결 상판 (높이 추정)');}finally{transform.delete();solid.delete();}}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
     else if(['도로','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
     else if(item.lines){for(let i=0;i<p.length;i+=6){const a=Array.from(p.slice(i,i+3),v=>v*factor),b=Array.from(p.slice(i+3,i+6),v=>v*factor);doc.objects().addLine(a,b,attr);expected++;}}
@@ -36,3 +35,4 @@ function buildRhinoFile(rhino,items,scale,cad){
   return bytes;
  }finally{if(reopened)reopened.delete();doc.delete();}
 }
+
