@@ -23,6 +23,7 @@ if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes(
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);}
+if(stepped){let occupied=[];for(const name of ['철도','도로','하천','녹지']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
 const mask=unionAll(Object.values(covers)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
@@ -52,7 +53,10 @@ function makeSteps(){
   for(const poly of polygons){face('대지',poly,()=>z0+level);face('대지',poly,()=>z0-5);
    for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level),bt=point(...b,z0+level),ab=point(...a,z0-5),bb=point(...b,z0-5);tri('대지',at,ab,bb);tri('대지',at,bb,bt);}
   }
-  for(const [name,polys] of Object.entries(layerCovers))for(const poly of polys)face(name,poly,()=>z0+level+.025);
+  for(const [name,polys] of Object.entries(layerCovers))for(const poly of polys){
+   face(name,poly,()=>z0+level+.025);face(name,poly,()=>z0-5);
+   for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level+.025),bt=point(...b,z0+level+.025),ab=point(...a,z0-5),bb=point(...b,z0-5);tri(name,at,ab,bb);tri(name,at,bb,bt);}
+  }
   const lines=group('등고선');lines.lines=true;
   for(const poly of footprint)for(const ring of poly)for(let i=1;i<ring.length;i++)lines.positions.push(...point(...ring[i-1],z0+level+.04),...point(...ring[i],z0+level+.04));
  }

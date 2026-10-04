@@ -54,7 +54,7 @@ function cadTerrain(r,terrain,factor,add){
 function cadCover(r,terrain,polygons,factor,add,name){
  if(terrain.bands){
   for(const band of terrain.bands){const polys=band.covers[name];if(!polys?.length)continue;
-   cadCover(r,{...terrain,bands:null,points:terrain.points.map(p=>[p[0],p[1],band.level])},polys,factor,add,name);
+   for(const poly of polys){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level+.025},factor);try{add(solid,name);}finally{solid.delete();}}
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
