@@ -55,11 +55,11 @@ function cadCover(r,terrain,polygons,factor,add,name){
  if(terrain.bands){
   for(const band of terrain.bands){const polys=band.covers[name];if(!polys?.length)continue;
    if(name==='철도'){cadCover(r,{...terrain,bands:null,points:terrain.points.map(p=>[p[0],p[1],band.level])},polys,factor,add,name);continue;}
-   for(const poly of polys){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level+.025},factor);try{add(solid,name);}finally{solid.delete();}}
+   for(const poly of polys){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level+.025-(terrain.lowerStep&&['도로','하천','바다'].includes(name)?terrain.interval:0)},factor);try{add(solid,name);}finally{solid.delete();}}
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
- const points=terrain.points.map(p=>[p[0],p[1],p[2]+.025]);
+ const points=terrain.points.map(p=>[p[0],p[1],p[2]+.025-(terrain.lowerStep&&['도로','하천','바다'].includes(name)?terrain.interval:0)]);
  const brep=r.createTerrainBrep({...terrain,points,polygons:clean,factor});
  if(!brep||!brep.isValid){if(brep)brep.delete();throw Error(name+' 경계 면 검증에 실패했습니다.');}
  try{add(brep,name);}finally{brep.delete();}

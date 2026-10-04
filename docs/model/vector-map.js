@@ -1,7 +1,7 @@
 import {packedMap,world} from './packed-map.js?v=local4';
 import {loadMap,inKorea} from './korea-data.js?v=packed2';
 import {cityMap} from './city-map.js?v=local4';
-import {prepareCoast,paintCoast} from './coast-background.js?v=nature-parapet1';
+import {prepareCoast,paintCoast} from './coast-background.js?v=nature-parapet2';
 const styles={1:['#a7abb1',1,'#d5d6d9'],2:['#e6b77f',5,'#d0d8e2'],3:['#e6b77f',2,'#d0d8e2'],4:['#80858b',2],5:['#8dc1dc',1,'#8dc1dc'],6:['#86b478',.5,'#bfdcaf'],7:['#d3bd9e',.5,'#e8dbc7']};
 // Paint bottom to top: water/land, roads/rail, buildings; labels stay above canvas.
 const paintOrder={5:0,6:1,7:2,4:2,2:2,3:2,1:3};

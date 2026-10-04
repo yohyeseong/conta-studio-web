@@ -1,5 +1,7 @@
-let coast;
-export function prepareCoast(world,redraw){import('./coast-data.js?v=nature-parapet1').then(({COAST})=>{const bytes=Uint8Array.from(atob(COAST),c=>c.charCodeAt(0));return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();}).then(data=>{coast=data;for(const poly of coast.land)poly.points=poly.ring.map(p=>world(...p));redraw();}).catch(()=>{});}
+let coast,job;
+function loadCoast(){return job||(job=import('./coast-data.js?v=nature-parapet1').then(({COAST})=>{const bytes=Uint8Array.from(atob(COAST),c=>c.charCodeAt(0));return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();}));}
+export function prepareCoast(world,redraw){loadCoast().then(data=>{coast=data;for(const poly of coast.land)poly.points=poly.ring.map(p=>world(...p));redraw();}).catch(()=>{});}
+export async function coastForSelection(bounds){const data=await loadCoast(),[w,s,e,n]=data.bounds;if(bounds[0]<w||bounds[1]<s||bounds[2]>e||bounds[3]>n)return null;return data.land.filter(p=>p.bbox[2]>=bounds[0]&&p.bbox[0]<=bounds[2]&&p.bbox[3]>=bounds[1]&&p.bbox[1]<=bounds[3]).map(p=>p.ring);}
 export function paintCoast(ctx,world,scale,origin,bounds){
  if(!coast)return;
  const [w,s,e,n]=coast.bounds;if(bounds[2]<w||bounds[0]>e||bounds[3]<s||bounds[1]>n)return;
