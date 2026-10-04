@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=official1');
+importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=official1','bridge-network.js?v=bridge-links1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -14,19 +14,15 @@ const stepped=d.terrainMode==='stepped';if(!Number.isFinite(interval)||interval<
 const surface=terrainSurface(w,h,n,rawZ,z0),heightCache=new Map();const z=(x,y)=>{const key=x+","+y;if(heightCache.has(key))return heightCache.get(key);const raw=surface.height(x,y),value=stepped?Math.floor((raw-z0+1e-8)/interval)*interval+z0:raw;heightCache.set(key,value);return value;};
 const xy=c=>[(c[0]-center[0])*111319.490793*Math.cos(center[1]*Math.PI/180),(c[1]-center[1])*111319.490793];
 const rect=[[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]]];
-const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[]},buildings=[],bridges=[];let skipped=0,estimated=0;
+const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[]},buildings=[],bridgeRecords=[];let bridges=[];let skipped=0,estimated=0;
 const geo=(d.osm.preparedGeo?MilitaryPolicy.assertPrepared(d.osm,d.bounds):MilitaryPolicy.assertSelection(d.osm,d.bounds||[-180,-90,180,90])).geo;if(geo.features.length>16000)throw Error('주변 요소가 너무 많습니다. 영역을 줄여주세요.');
 for(const f of [...geo.features].sort((a,b)=>String(a.id).localeCompare(String(b.id)))){const t=f.properties||{},g=f.geometry;if(!g)continue;const cat=(t.building&&t.building!=='no')||(t['building:part']&&t['building:part']!=='no')?'건물':t.highway||t['area:highway']?'도로':t.waterway||t.natural==='water'?'하천':t.railway?'철도':['grass','forest','meadow','orchard'].includes(t.landuse)||['wood','scrub','grassland'].includes(t.natural)||['park','garden','pitch'].includes(t.leisure)?'녹지':null;if(!cat)continue;
 try{let polys=[];if(g.type==='Polygon')polys=[g.coordinates.map(r=>r.map(xy))];else if(g.type==='MultiPolygon')polys=g.coordinates.map(p=>p.map(r=>r.map(xy)));else if(['LineString','MultiLineString'].includes(g.type)&&cat!=='건물'&&cat!=='녹지'){let width=parseFloat(t.width);if(String(t.width).includes('ft'))width*=.3048;if(!(width>0&&width<200)){estimated++;width=cat==='철도'?3:cat==='하천'?4:parseFloat(t.lanes)>0?parseFloat(t.lanes)*3:({motorway:14,trunk:12,primary:10,secondary:9,tertiary:7,residential:6,living_street:4,service:3,footway:1.5,path:1.5,steps:1.5,cycleway:2,pedestrian:4,track:3}[t.highway]||roadWidth);}for(const line of g.type==='LineString'?[g.coordinates]:g.coordinates)polys.push(...bufferLine(line.map(xy),width,[-w/2,-h/2,w/2,h/2]));}if(!polys.length)continue;const clipped=pc.intersection(polys,rect);if(!clipped.length)continue;
 if(cat==='도로'&&((t.bridge&&!['no','false','0'].includes(String(t.bridge)))||t.location==='elevated')&&(!t.tunnel||['no','false','0'].includes(String(t.tunnel)))){
  const height=Number(d.bridgeHeight??5),thickness=Number(d.bridgeThickness??.8);if(!(height>=1&&height<=50&&thickness>=.1&&thickness<=3&&height>thickness))throw Error('고가도로 높이·두께 범위를 확인하세요.');
- const layer=Math.max(1,Math.min(5,parseInt(t.layer)||1));const gap=height*layer;estimated++;
- const line=g.type==='LineString'?g.coordinates.map(xy):g.type==='MultiLineString'?g.coordinates[0].map(xy):null;
- const first=line?.[0]||clipped[0][0][0],last=line?.[line.length-1]||clipped[0][0][1],vx=last[0]-first[0],vy=last[1]-first[1],den=vx*vx+vy*vy;
- const slope=den>1e-8?(rawZ(...last)-rawZ(...first))/den:0,a=vx*slope,b=vy*slope;
- let roof=rawZ(...first)-z0+gap-a*first[0]-b*first[1];
- for(const poly of clipped)for(const ring of poly)for(const q of ring)roof=Math.max(roof,rawZ(...q)-z0+gap-a*q[0]-b*q[1]);
- for(const poly of clipped)bridges.push({poly,a,b,roof,bottom:roof-thickness,estimated:true,sourceId:f.id,layer});
+ const layer=Math.max(1,Math.min(5,parseInt(t.layer)||1));estimated++;
+ const lines=g.type==='LineString'?[g.coordinates.map(xy)]:g.type==='MultiLineString'?g.coordinates.map(line=>line.map(xy)):[];
+ if(lines.length)bridgeRecords.push({polys:clipped,lines,layer,sourceId:f.id,nodeIds:f.osmNodes,groundEnds:f.groundEnds});
  counts['고가도로']=(counts['고가도로']||0)+clipped.length;continue;
  }
 if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes('ft'))height*=.3048;if(!Number.isFinite(height)||height<=0){height=(parseFloat(t['building:levels'])||1)*floor;estimated++;}for(const poly of clipped)buildings.push({poly,height});}else covers[cat].push(clipped);counts[cat]=(counts[cat]||0)+clipped.length;
@@ -34,6 +30,7 @@ if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes(
 if(d.coast) covers['바다']=pc.difference(rect,d.coast.map(r=>[r.map(xy)]));
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
+if(bridgeRecords.length){const water=pc.union(covers['하천'],covers['바다']);bridges=bridgeNetwork(bridgeRecords,{pc,unionAll,terrainPolygons,earcut,rect,rawZ,groundZ:z,z0,offset:.025-(d.lowerStep?interval:0),height:Number(d.bridgeHeight??5),thickness:Number(d.bridgeThickness??.8),water,roads:covers['도로'],clipEdge});covers['도로']=pc.difference(covers['도로'],water);counts['고가도로']=bridges.length;}
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);}
 if(stepped){let occupied=[];for(const name of ['도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
@@ -81,7 +78,7 @@ if(!stepped)for(let j=0;j<n;j++){for(let i=0;i<n;i++){const x=-w/2+i*dx,y=-h/2+j
 // One continuous perimeter down to a common base, independent of point-in-area tests.
 const ring=[];for(let i=0;i<n;i++)ring.push([-w/2+i*dx,-h/2]);for(let j=0;j<n;j++)ring.push([w/2,-h/2+j*dy]);for(let i=n;i>0;i--)ring.push([-w/2+i*dx,h/2]);for(let j=n;j>0;j--)ring.push([-w/2,-h/2+j*dy]);
 if(!stepped)for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],aa=point(...a,min-baseDepth),bb=point(...b,min-baseDepth),at=point(...a,z(...a)),bt=point(...b,z(...b));tri('대지',at,aa,bb);tri('대지',at,bb,bt);}if(!stepped)face('대지',rect,()=>min-baseDepth);
-for(const bridge of bridges){const {poly,a,b,roof,bottom}=bridge,top=(x,y)=>z0+a*x+b*y+roof,low=(x,y)=>z0+a*x+b*y+bottom;face('고가도로',poly,top);face('고가도로',poly,low);for(const ring of poly)for(let i=1;i<ring.length;i++){const p=ring[i-1],q=ring[i];tri('고가도로',point(...p,top(...p)),point(...p,low(...p)),point(...q,low(...q)));tri('고가도로',point(...p,top(...p)),point(...q,low(...q)),point(...q,top(...q)));}}
+for(const bridge of bridges){const target=group('고가도로').positions;for(const value of bridge.positions)target.push(value);}
 for(const {poly,height} of buildings){const zs=poly[0].map(p=>z(...p)),base=Math.max(...zs),bottom=Math.min(...zs)-.02,roof=base+height;cad.buildings.push({poly,bottom:bottom-z0,roof:roof-z0});face('건물',poly,()=>roof);face('건물',poly,()=>bottom);for(const r of poly)for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];tri('건물',point(...a,bottom),point(...b,bottom),point(...b,roof));tri('건물',point(...a,bottom),point(...b,roof),point(...a,roof));}}
 if(d.parapet){
  const height=Number(d.parapetHeight);if(!Number.isFinite(height)||height<.1||height>3)throw Error('파라펫 높이는 0.1–3m로 입력하세요.');
