@@ -86,6 +86,24 @@ jobs:
           PY
       - name: Bundle model source worker
         run: python scripts/build-model-source-worker.py docs/model
+      - name: Publish verified Windows installer on the website CDN
+        run: |
+          python - <<'PY'
+          import pathlib,urllib.request,hashlib
+          name='ContaStudio-1.1.0-rc.25-Online-Setup.exe'
+          url='https://github.com/yohyeseong/conta-studio-web/releases/download/v1.1.0-rc.25/'+name
+          target=pathlib.Path('docs/downloads')/name
+          target.parent.mkdir(parents=True,exist_ok=True)
+          digest=hashlib.sha256();size=0
+          with urllib.request.urlopen(url,timeout=120) as response,target.open('wb') as output:
+              while chunk:=response.read(1024*1024):
+                  size+=len(chunk)
+                  if size>64072704:raise RuntimeError('Installer too large')
+                  output.write(chunk);digest.update(chunk)
+          if size!=64072704 or digest.hexdigest()!='c8abfea5716562285e090a14cd406b1b5c5c9aeefc3536e505abf0d08a64c080':
+              raise RuntimeError('Installer integrity failed')
+          print('Verified installer bytes:',size)
+          PY
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
