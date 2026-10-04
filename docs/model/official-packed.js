@@ -46,3 +46,4 @@ export async function officialFeatures(bounds,zones=[]){
  for(let i=0;i<jobs.length;i+=6)for(const features of await Promise.all(jobs.slice(i,i+6).map(c=>tile(c.px,c.py,c.key,c.parent,c.info))))for(const f of features)if(overlap(f.bbox,bounds)&&!zones.some(z=>overlap(z,f.bbox)))all.set(f.id,f);
  return [...all.values()];
 }
+export async function officialMetadata(bounds){const index=await json('index.json');if(index.version!==VERSION||!index.safeOnly||!index.complete)throw Error('공식 자료 목록 불일치');const columns=new Set();for(let x=Math.floor(bounds[0]/.05);x<=Math.floor(bounds[2]/.05);x++)columns.add(String(x));await Promise.all([...columns].filter(c=>index.columns.includes(c)).map(c=>json(c+'.json')));}

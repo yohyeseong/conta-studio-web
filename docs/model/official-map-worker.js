@@ -1,5 +1,5 @@
-import {officialFeatures} from './official-packed.js?v=official1';
-import {mergeOfficial} from './official-details.js?v=official1';
+import {officialFeatures} from './official-packed.js?v=model-fast1';
+import {mergeOfficial} from './official-details.js?v=model-fast1';
 const W=256*2**19;
 const ll=(x,y)=>[x/W*360-180,Math.atan(Math.sinh(Math.PI*(1-2*y/W)))*180/Math.PI];
 const area=r=>Math.abs(r.reduce((a,p,i)=>i?a+r[i-1][0]*p[1]-p[0]*r[i-1][1]:a,0))/2;

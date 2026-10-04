@@ -1,12 +1,19 @@
-import {addOfficialDetails} from './official-details.js?v=official1';
-import {officialFeatures} from './official-packed.js?v=official1';
+import {addOfficialDetails} from './official-details.js?v=model-fast1';
+import {officialFeatures} from './official-packed.js?v=model-fast1';
 import {mapGrid} from './map-grid.js?v=packed2';
 import {addOfficialRoads} from './official-roads.js?v=packed2';
 import {get,inKorea} from './korea-data.js?v=generate3';
+import {packedModel} from './model-packed.js?v=model-fast1';
 const ROOT='prepared/20261002/',VERSION='895aa1a4fe0bd79c-prepared2';
-export async function preparedData(bounds,kind='model',zoom=16){
+export async function preparedData(bounds,kind='model',zoom=16,onProgress=()=>{}){
  if(kind==='map')return {preparedGeo:await mapGrid(bounds)};
  if(!inKorea(bounds))throw Error('전국 데이터 범위 밖입니다.');
+ if(kind==='model'){
+  const officialPending=officialFeatures(bounds).then(value=>({value}),error=>({error}));
+  const source=await packedModel(bounds,onProgress);onProgress('공식 건물 외곽선·높이 적용 중',48);
+  const official=await officialPending;if(official.error)throw official.error;
+  return addOfficialDetails(source,bounds,official.value);
+ }
  const officialPending=officialFeatures(bounds).then(value=>({value}),error=>({error}));
  const roadsPending=addOfficialRoads({preparedGeo:{type:'FeatureCollection',features:[]}},bounds).then(value=>({value}),error=>({error}));
  const index=await get(ROOT+'index.json');if(index.schema!==1||index.version!==VERSION||!index.safeOnly||index.sourceDate!=='2026-10-02')throw Error('가공 데이터 버전 불일치');

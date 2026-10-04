@@ -1,4 +1,5 @@
 const CORS={'Access-Control-Allow-Origin':'https://yohyeseong.github.io','Access-Control-Expose-Headers':'Content-Range, Content-Length','Access-Control-Allow-Headers':'Range','Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'};
+const inflight=new Map();
 export default {async fetch(request,env,ctx){
  const url=new URL(request.url);
  if(url.pathname==='/health')return Response.json({ready:true,version:'official-202609-v1'},{headers:CORS});
@@ -9,8 +10,9 @@ export default {async fetch(request,env,ctx){
  const match=/^bytes=(\d+)-(\d+)$/.exec(range);if(!match)return new Response(null,{status:416,headers:CORS});
  const start=Number(match[1]),end=Number(match[2]);if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<8||end<start||end-start>=25*1024*1024)return new Response(null,{status:416,headers:CORS});
  // Cache complete static assets locally; cache API serves byte ranges without transferring a whole pack.
- const cache=caches.default,key=new Request(url.origin+url.pathname);let asset=await cache.match(key);
- if(!asset){asset=await env.ASSETS.fetch(key);if(!asset.ok)return new Response(null,{status:asset.status,headers:CORS});const bytes=await asset.arrayBuffer();asset=new Response(bytes,{headers:{...CORS,'Content-Type':'application/octet-stream','Content-Length':String(bytes.byteLength)}});ctx.waitUntil(cache.put(key,asset.clone()));}
- const bytes=await asset.arrayBuffer();if(end>=bytes.byteLength)return new Response(null,{status:416,headers:{...CORS,'Content-Range':'bytes */'+bytes.byteLength}});
+ const cache=caches.default,key=new Request(url.origin+url.pathname),hit=await cache.match(new Request(key,{headers:{Range:range}}));
+ if(hit&&[206,416].includes(hit.status))return new Response(request.method==='HEAD'?null:hit.body,{status:hit.status,headers:{...Object.fromEntries(hit.headers),...CORS}});
+ if(!inflight.has(key.url)){const pending=(async()=>{let asset=hit||await env.ASSETS.fetch(key);if(!asset.ok)return {status:asset.status};const bytes=await asset.arrayBuffer();if(!hit)ctx.waitUntil(cache.put(key,new Response(bytes,{headers:{...CORS,'Content-Type':'application/octet-stream','Content-Length':String(bytes.byteLength)}})));return {bytes};})().finally(()=>inflight.delete(key.url));inflight.set(key.url,pending);}
+ const result=await inflight.get(key.url);if(result.status)return new Response(null,{status:result.status,headers:CORS});const bytes=result.bytes;if(end>=bytes.byteLength)return new Response(null,{status:416,headers:{...CORS,'Content-Range':'bytes */'+bytes.byteLength}});
  return new Response(request.method==='HEAD'?null:bytes.slice(start,end+1),{status:206,headers:{...CORS,'Content-Type':'application/octet-stream','Content-Length':String(end-start+1),'Content-Range':`bytes ${start}-${end}/${bytes.byteLength}`,'Accept-Ranges':'bytes'}});
 }};
