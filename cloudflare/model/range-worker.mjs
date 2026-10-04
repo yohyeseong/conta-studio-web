@@ -1,4 +1,4 @@
-const CORS={'Access-Control-Allow-Origin':'https://yohyeseong.github.io','Access-Control-Expose-Headers':'Content-Range, Content-Length','Access-Control-Allow-Headers':'Range','Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'};
+const CORS={'access-control-allow-origin':'https://yohyeseong.github.io','access-control-expose-headers':'Content-Range, Content-Length','access-control-allow-headers':'Range','cache-control':'public, max-age=31536000, immutable','x-content-type-options':'nosniff'};
 const inflight=new Map();
 export default {async fetch(request,env,ctx){
  const url=new URL(request.url);

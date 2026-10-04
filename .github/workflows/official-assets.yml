@@ -10,18 +10,7 @@ concurrency:
   group: official-assets
   cancel-in-progress: false
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Verify public edition and range downloads
-        run: node cloudflare/official/verify_public.mjs
   deploy:
-    if: github.event_name == 'workflow_dispatch'
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

@@ -1,5 +1,5 @@
 let elevationPending;function elevationIndex(){return elevationPending||=(fetch('https://conta-model-data.conta-studio-yohyeseong.workers.dev/elevation/glo30-2021/index.json',{signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('고도 자료 목록 수신 실패 ('+r.status+')');return r.json();}).catch(e=>{elevationPending=null;throw e;}));}
-import {get,inKorea} from './korea-data.js?v=model-fast1';
+import {get,inKorea} from './korea-data.js?v=model-fast2';
 const ROOT='elevation/glo30-2021/',BASE='https://conta-model-data.conta-studio-yohyeseong.workers.dev/';
 export async function elevationPlan(bounds,jobs,zoom=12){
  if(inKorea(bounds)){
