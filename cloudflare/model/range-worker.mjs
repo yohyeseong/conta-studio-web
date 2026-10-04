@@ -1,7 +1,7 @@
 const CORS={'Access-Control-Allow-Origin':'https://yohyeseong.github.io','Access-Control-Expose-Headers':'Content-Range, Content-Length','Access-Control-Allow-Headers':'Range','Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'};
 export default {async fetch(request,env,ctx){
  const url=new URL(request.url);
- if(url.pathname==='/health')return Response.json({ready:true,version:'official-202609-v1'},{headers:CORS});
+ if(url.pathname==='/health')return Response.json({ready:true,version:'model-20261002-v1'},{headers:CORS});
  if(!/^\/(model-20261002-v1|official-202609-v1)\/\d+_\d+\.pack$/.test(url.pathname))return new Response('Not found',{status:404,headers:CORS});
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...CORS,'Access-Control-Allow-Methods':'GET, HEAD, OPTIONS'}});
  if(!['GET','HEAD'].includes(request.method))return new Response(null,{status:405,headers:CORS});

@@ -1,9 +1,1 @@
-{
- "name":"conta-official-data",
- "main":"asset-worker.mjs",
- "compatibility_date":"2026-10-03",
- "workers_dev":true,
- "observability":{"enabled":false},
- "assets":{"directory":"./public","binding":"ASSETS","run_worker_first":false}
-}
-
+{"name":"conta-official-data","main":"asset-worker.mjs","compatibility_date":"2026-10-04","workers_dev":true,"observability":{"enabled":false},"assets":{"directory":"./public","binding":"ASSETS","run_worker_first":["/official-202609-v1/*.pack"]}}

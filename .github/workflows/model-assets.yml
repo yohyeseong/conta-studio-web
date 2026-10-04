@@ -1,0 +1,58 @@
+name: Publish fast verified model sources
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/model/**', '.github/workflows/model-assets.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: model-assets
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: 81e2224a3f860ca60cb07565f1979c221cc1fb26
+          path: verified-source
+          sparse-checkout: |
+            prepared/20261002
+            supplemental/official-roads-20260914
+            elevation/glo30-2021
+      - name: Build complete safe model packs with original geometry
+        run: python cloudflare/model/build.py verified-source cloudflare/model/public
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deploy source data
+        working-directory: cloudflare/model
+        run: npx --yes wrangler@4 deploy --config wrangler.jsonc
+      - name: Verify selected-range data integrity
+        run: node cloudflare/model/verify.mjs
+  official-range:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore hash-verified public building assets
+        run: node cloudflare/official/restore_assets.mjs
+      - name: Validate every building asset
+        run: python cloudflare/official/validate_assets.py
+      - name: Enable true building byte ranges
+        working-directory: cloudflare/official
+        run: npx --yes wrangler@4 deploy --config wrangler.jsonc
+      - name: Verify official building data
+        run: node cloudflare/official/verify_public.mjs
