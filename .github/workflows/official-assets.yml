@@ -1,0 +1,64 @@
+name: Publish prepared official building data
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/official/**', '.github/workflows/official-assets.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: official-assets
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download verified screened edition
+        run: |
+          curl --fail --retry 3 --max-time 1500 'https://wrapped-books-occurring-wisdom.trycloudflare.com/official-buildings-202609.tar' -o "$RUNNER_TEMP/official.tar"
+          python - <<'PY'
+          import os,pathlib,hashlib,tarfile
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'official.tar'
+          with path.open('rb') as f:assert hashlib.file_digest(f,'sha256').hexdigest()=='c42553d587cb218489e68acd3484c4310260f512c407f0492eef8a11592e11f2'
+          target=pathlib.Path('cloudflare/official/public');target.mkdir(parents=True,exist_ok=True)
+          with tarfile.open(path) as tar:tar.extractall(target,filter='data')
+          PY
+      - name: Validate every regional artifact
+        run: python cloudflare/official/validate_assets.py
+      - name: Deploy static official data
+        working-directory: cloudflare/official
+        run: npx --yes wrangler@4 deploy --config wrangler.jsonc
+      - name: Verify public edition and range downloads
+        run: |
+          python - <<'PY'
+          import urllib.request,json,hashlib,time
+          root='https://conta-official-data.conta-studio-yohyeseong.workers.dev/official-202609-v1/'
+          for attempt in range(8):
+              try:
+                  with urllib.request.urlopen(root+'index.json',timeout=30) as r:index=json.load(r)
+                  assert index['complete'] and index['safeOnly'] and len(index['sources'])==23
+                  break
+              except Exception:
+                  if attempt==7:raise
+                  time.sleep(10)
+          with urllib.request.urlopen(root+'2539.json') as r:catalog=json.load(r)
+          row,parent=next(iter(catalog['parents'].items()));key,tile=next(iter(parent['tiles'].items()))
+          req=urllib.request.Request(root+'2539_'+row+'.pack',headers={'Range':'bytes='+str(tile['offset'])+'-'+str(tile['offset']+tile['bytes']-1),'Origin':'https://yohyeseong.github.io'})
+          with urllib.request.urlopen(req,timeout=60) as r:
+              status=r.status;data=r.read();assert r.headers.get('Access-Control-Allow-Origin')=='https://yohyeseong.github.io'
+          if status==200:
+              assert len(data)==parent['bytes'] and hashlib.sha256(data).hexdigest()==parent['sha256']
+              data=data[tile['offset']:tile['offset']+tile['bytes']]
+          else:assert status==206
+          assert len(data)==tile['bytes'] and hashlib.sha256(data).hexdigest()==tile['sha256']
+          print('Public national edition and byte-range download verified')
+          PY
+
