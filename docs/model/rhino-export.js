@@ -18,6 +18,7 @@ function buildRhinoFile(rhino,items,scale,cad){
     const add=(brep,name)=>{attr.name=name;doc.objects().addBrep(brep,attr);expected++;};
     if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
+    else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
     else if(['도로','녹지','하천','철도'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
     else if(item.lines){for(let i=0;i<p.length;i+=6){const a=Array.from(p.slice(i,i+3),v=>v*factor),b=Array.from(p.slice(i+3,i+6),v=>v*factor);doc.objects().addLine(a,b,attr);expected++;}}
     else{const mesh=new rhino.Mesh(),lookup=new Map();try{
@@ -34,3 +35,4 @@ function buildRhinoFile(rhino,items,scale,cad){
   return bytes;
  }finally{if(reopened)reopened.delete();doc.delete();}
 }
+

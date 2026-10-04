@@ -25,8 +25,8 @@ for(const k in covers)covers[k]=unionAll(covers[k]);
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],builtArea);}
 if(stepped){let occupied=[];for(const name of ['철도','도로','하천','녹지']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
-const mask=unionAll(Object.values(covers)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
-const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
+const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
+const cad={terrain:{w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-5},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
 if(stepped)cad.terrain.bands=makeSteps();
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
 // Triangulate validated layer boundaries once; clip convex triangles with linear arithmetic.
@@ -54,7 +54,7 @@ function makeSteps(){
    for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level),bt=point(...b,z0+level),ab=point(...a,z0-5),bb=point(...b,z0-5);tri('대지',at,ab,bb);tri('대지',at,bb,bt);}
   }
   for(const [name,polys] of Object.entries(layerCovers))for(const poly of polys){
-   face(name,poly,()=>z0+level+.025);face(name,poly,()=>z0-5);
+   face(name,poly,()=>z0+level+.025);if(name==='철도')continue;face(name,poly,()=>z0-5);
    for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level+.025),bt=point(...b,z0+level+.025),ab=point(...a,z0-5),bb=point(...b,z0-5);tri(name,at,ab,bb);tri(name,at,bb,bt);}
   }
   const lines=group('등고선');lines.lines=true;
@@ -69,6 +69,15 @@ if(!stepped)for(let j=0;j<n;j++){for(let i=0;i<n;i++){const x=-w/2+i*dx,y=-h/2+j
 const ring=[];for(let i=0;i<n;i++)ring.push([-w/2+i*dx,-h/2]);for(let j=0;j<n;j++)ring.push([w/2,-h/2+j*dy]);for(let i=n;i>0;i--)ring.push([-w/2+i*dx,h/2]);for(let j=n;j>0;j--)ring.push([-w/2,-h/2+j*dy]);
 if(!stepped)for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],aa=point(...a,min-5),bb=point(...b,min-5),at=point(...a,z(...a)),bt=point(...b,z(...b));tri('대지',at,aa,bb);tri('대지',at,bb,bt);}if(!stepped)face('대지',rect,()=>min-5);
 for(const {poly,height} of buildings){const zs=poly[0].map(p=>z(...p)),base=Math.max(...zs),bottom=Math.min(...zs)-.02,roof=base+height;cad.buildings.push({poly,bottom:bottom-z0,roof:roof-z0});face('건물',poly,()=>roof);face('건물',poly,()=>bottom);for(const r of poly)for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];tri('건물',point(...a,bottom),point(...b,bottom),point(...b,roof));tri('건물',point(...a,bottom),point(...b,roof),point(...a,roof));}}
+if(d.parapet){
+ const height=Number(d.parapetHeight);if(!Number.isFinite(height)||height<.1||height>3)throw Error('파라펫 높이는 0.1–3m로 입력하세요.');
+ for(const building of cad.buildings){
+  const edges=unionAll(building.poly.map(r=>bufferLine(r,.4,[-w/2,-h/2,w/2,h/2]))),walls=terrainPolygons(pc.intersection([building.poly],edges));
+  for(const poly of walls){const bottom=building.roof,roof=bottom+height;cad.parapets.push({poly,bottom,roof});face('파라펫',poly,()=>z0+roof);face('파라펫',poly,()=>z0+bottom);
+   for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i];tri('파라펫',point(...a,z0+bottom),point(...b,z0+bottom),point(...b,z0+roof));tri('파라펫',point(...a,z0+bottom),point(...b,z0+roof),point(...a,z0+roof));}
+  }
+ }counts['파라펫']=cad.parapets.length;
+}
 const contours=group('등고선');const unique=new Map();for(let i=0;i<contours.positions.length;i+=6){const a=contours.positions.slice(i,i+3),b=contours.positions.slice(i+3,i+6),ka=a.map(v=>Math.round(v*10000)).join(','),kb=b.map(v=>Math.round(v*10000)).join(',');if(ka!==kb)unique.set(ka<kb?ka+'|'+kb:kb+'|'+ka,[...a,...b]);}contours.positions=[...unique.values()].flat();
 counts['대지']=stepped?cad.terrain.bands.length:1;counts['등고선']=Math.floor(group('등고선').positions.length/6);return {groups:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,{...v,positions:new Float32Array(v.positions)}])),counts,estimated,skipped,z0,cad};}
 onmessage=e=>{activeRequestId=e.data.id;try{if(!e.data.osm.preparedGeo&&typeof osmtogeojson==='undefined')importScripts('vendor/osmtogeojson.js');const result=makeModel(e.data);postMessage({id:e.data.id,result},Object.values(result.groups).map(g=>g.positions.buffer));}catch(error){postMessage({id:e.data.id,error:String(error.message||error)});}};
