@@ -44,7 +44,7 @@ function makeSteps(){
   const x=-w/2+i*dx,y=-h/2+j*dy,a=sample(x,y),b=sample(x+dx,y),c=sample(x+dx,y+dy),e=sample(x,y+dy);
   for(const t of [[a,b,c],[a,c,e]]){
    const lo=Math.max(0,Math.floor(Math.min(...t.map(p=>p[2]))/interval)),hi=Math.max(lo,Math.floor(Math.max(...t.map(p=>p[2]))/interval));
-   if(hi>200)throw Error('지형 높이에 비해 단 높이가 너무 작습니다. 한 단 높이를 늘려주세요.');
+   if(!Number.isFinite(lo)||!Number.isFinite(hi))throw Error('지형 높이 자료가 올바르지 않습니다.');
    for(let k=lo;k<=hi;k++){
     let cut=clipEdge(clipEdge(t,2,k*interval,true),2,(k+1)*interval,false);
     if(cut.length<3)continue;const ring=cut.map(p=>p.slice(0,2));ring.push(ring[0]);
