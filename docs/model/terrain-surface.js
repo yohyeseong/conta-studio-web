@@ -4,8 +4,8 @@ function terrainPolygons(polygons){
  const area=ring=>Math.abs(ring.reduce((a,p,i)=>i?a+ring[i-1][0]*p[1]-p[0]*ring[i-1][1]:a,0)/2);
  return polygons.flatMap(poly=>{
   const clean=poly.map(ring=>{
-   const out=[];for(const p of ring)if(!out.length||Math.hypot(p[0]-out.at(-1)[0],p[1]-out.at(-1)[1])>1e-9)out.push(p);
-   if(out.length&&Math.hypot(out[0][0]-out.at(-1)[0],out[0][1]-out.at(-1)[1])>1e-9)out.push(out[0]);
+   const tolerance=1e-6,out=[];for(const p of ring)if(!out.length||Math.hypot(p[0]-out.at(-1)[0],p[1]-out.at(-1)[1])>tolerance)out.push(p);
+   if(out.length){if(Math.hypot(out[0][0]-out.at(-1)[0],out[0][1]-out.at(-1)[1])>tolerance)out.push(out[0]);else out[out.length-1]=out[0];}
    return out;
   });
   if(clean[0].length<4||area(clean[0])<1e-8)return [];

@@ -1,0 +1,5 @@
+/*
+  Access-Control-Allow-Origin: https://yohyeseong.github.io
+  Access-Control-Expose-Headers: Content-Range, Content-Length
+  Cache-Control: public, max-age=31536000, immutable
+  X-Content-Type-Options: nosniff

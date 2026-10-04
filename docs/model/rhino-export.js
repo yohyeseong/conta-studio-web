@@ -4,7 +4,7 @@ function buildRhinoFile(rhino,items,scale,cad){
  const doc=new rhino.File3dm();let reopened;
  try{
   doc.applicationName='Conta Studio Web';doc.applicationUrl='https://yohyeseong.github.io/conta-studio-web/model/';
-  doc.startSectionComments='OSM contributors / ODbL 1.0; Republic of Korea Ministry of Land standard node/link roads (2026-09-14); Copernicus GLO-30 DSM: Produced using Copernicus WorldDEM-30; copyright DLR e.V. 2010-2014 and Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. Other regions: Mapzen/AWS, USGS, NOAA. Estimated context model.';
+  doc.startSectionComments='Ministry of Land, Infrastructure and Transport GIS integrated building information, VWorld (2026-09-09), official footprints/heights/floors prioritized; OSM contributors / ODbL 1.0; Republic of Korea Ministry of Land standard node/link roads (2026-09-14); Copernicus GLO-30 DSM: Produced using Copernicus WorldDEM-30; copyright DLR e.V. 2010-2014 and Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. Other regions: Mapzen/AWS, USGS, NOAA. Estimated context model.';
   doc.settings().modelUnitSystem=rhino.UnitSystem.Millimeters;doc.settings().modelAbsoluteTolerance=0.001;
   const factor=1000/scale;let expected=0;
   for(const item of items){
