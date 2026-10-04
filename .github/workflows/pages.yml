@@ -84,6 +84,8 @@ jobs:
               raise RuntimeError('Library verification failed: '+name)
           with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:list(pool.map(download,files.items()))
           PY
+      - name: Bundle model source worker
+        run: python scripts/build-model-source-worker.py docs/model
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs

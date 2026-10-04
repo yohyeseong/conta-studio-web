@@ -39,9 +39,9 @@ async function tile(px,py,key,parent,info){
  })();memo.set(cacheKey,job);try{const result=await job;if(memo.size>100){const old=[...memo.keys()].find(k=>k.startsWith('tile/')&&k!==cacheKey);if(old)memo.delete(old);}return result;}catch(e){memo.delete(cacheKey);throw e;}
 }
 export async function officialFeatures(bounds,zones=[]){
- const index=await json('index.json');if(index.version!==VERSION||index.token!==TOKEN||!index.safeOnly||!index.complete||index.sources.length!==23||index.sources.reduce((n,r)=>n+r.counts.input,0)!==14392125)throw Error('공식 전국 자료 목록 불일치');
+ const ids=Array.from({length:Math.floor(bounds[2]*100/5)-Math.floor(bounds[0]*100/5)+1},(_,i)=>String(Math.floor(bounds[0]*100/5)+i));const pendingColumns=Promise.all(ids.map(async c=>[c,await json(c+'.json').then(value=>({value}),error=>({error}))]));const index=await json('index.json');if(index.version!==VERSION||index.token!==TOKEN||!index.safeOnly||!index.complete||index.sources.length!==23||index.sources.reduce((n,r)=>n+r.counts.input,0)!==14392125)throw Error('공식 전국 자료 목록 불일치');
  const [w,s,e,n]=bounds,cells=[];for(let x=Math.floor(w/.01);x<=Math.floor(e/.01);x++)for(let y=Math.floor(s/.01);y<=Math.floor(n/.01);y++)cells.push({x,y,px:Math.floor(x/5),py:Math.floor(y/5)});if(cells.length>120)throw Error('공식 자료 선택 영역을 줄여주세요.');
- const columns=new Map();await Promise.all([...new Set(cells.map(v=>String(v.px)))].filter(c=>index.columns.includes(c)).map(async c=>{const value=await json(c+'.json');if(value.version!==VERSION||!value.safeOnly)throw Error('공식 지역 목록 불일치');columns.set(c,value);}));
+ const columns=new Map();for(const [c,result] of await pendingColumns){if(!index.columns.includes(c))continue;if(result.error)throw result.error;const value=result.value;if(value.version!==VERSION||!value.safeOnly)throw Error('공식 지역 목록 불일치');columns.set(c,value);}
  const jobs=cells.flatMap(c=>{const parent=columns.get(String(c.px))?.parents[c.py],key=c.x+'_'+c.y,info=parent?.tiles[key];return info?[{...c,parent,key,info}]:[];}),all=new Map();
  for(let i=0;i<jobs.length;i+=6)for(const features of await Promise.all(jobs.slice(i,i+6).map(c=>tile(c.px,c.py,c.key,c.parent,c.info))))for(const f of features)if(overlap(f.bbox,bounds)&&!zones.some(z=>overlap(z,f.bbox)))all.set(f.id,f);
  return [...all.values()];
