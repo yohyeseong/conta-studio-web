@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=official1','bridge-network.js?v=bridge-links1');
+importScripts('vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=official1','bridge-network.js?v=bridge-levels2');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -22,7 +22,7 @@ if(cat==='도로'&&((t.bridge&&!['no','false','0'].includes(String(t.bridge)))||
  const height=Number(d.bridgeHeight??5),thickness=Number(d.bridgeThickness??.8);if(!(height>=1&&height<=50&&thickness>=.1&&thickness<=3&&height>thickness))throw Error('고가도로 높이·두께 범위를 확인하세요.');
  const layer=Math.max(1,Math.min(5,parseInt(t.layer)||1));estimated++;
  const lines=g.type==='LineString'?[g.coordinates.map(xy)]:g.type==='MultiLineString'?g.coordinates.map(line=>line.map(xy)):[];
- if(lines.length)bridgeRecords.push({polys:clipped,lines,layer,sourceId:f.id,nodeIds:f.osmNodes,groundEnds:f.groundEnds});
+ if(lines.length)bridgeRecords.push({polys:clipped,lines,layer,sourceId:f.id,nodeIds:f.osmNodes,groundEnds:f.groundEnds,clearance:parseFloat(t.min_height)});
  counts['고가도로']=(counts['고가도로']||0)+clipped.length;continue;
  }
 if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes('ft'))height*=.3048;if(!Number.isFinite(height)||height<=0){height=(parseFloat(t['building:levels'])||1)*floor;estimated++;}for(const poly of clipped)buildings.push({poly,height});}else covers[cat].push(clipped);counts[cat]=(counts[cat]||0)+clipped.length;
