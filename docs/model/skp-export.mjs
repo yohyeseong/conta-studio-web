@@ -10,6 +10,12 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
  const open=ring=>ring.length>1&&ring[0].every((v,i)=>v===ring[ring.length-1][i])?ring.slice(0,-1):ring;
  const orient=(ring,positive)=>{const r=open(ring),area=r.reduce((sum,p,i)=>{const q=r[(i+1)%r.length];return sum+p[0]*q[1]-q[0]*p[1];},0);return (area>0)===positive?r:[...r].reverse();};
  let groups=0,faces=0;
+ // Clipping and Float32 conversion can leave zero-area triangles in the preview.
+ // Match the writer's plane test after conversion; those triangles have no surface.
+ const hasSurface=ring=>{
+  const normal=[0,0,0];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];normal[0]+=(a[1]-b[1])*(a[2]+b[2]);normal[1]+=(a[2]-b[2])*(a[0]+b[0]);normal[2]+=(a[0]-b[0])*(a[1]+b[1]);}
+  return Math.hypot(...normal)>=1e-9;
+ };
  function prism(shape,item,name,surface=false){
   const rings=shape.poly.map((r,i)=>orient(r,i===0)),material=materials.get(item.name);
   builder.addGroup(group=>{
@@ -37,7 +43,7 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
    builder.addGroup(group=>{
     const p=item.positions;
     if(item.lines){for(let i=0;i<p.length;i+=6)group.addPolyline([point(Array.from(p.slice(i,i+3))),point(Array.from(p.slice(i+3,i+6)))],{material});}
-    else for(let i=0;i<p.length;i+=9){const ring=[0,3,6].map(j=>point(Array.from(p.slice(i+j,i+j+3))));group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}
+    else for(let i=0;i<p.length;i+=9){const ring=[0,3,6].map(j=>point(Array.from(p.slice(i+j,i+j+3))));if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}
    },{name:item.name,material,layer});groups++;
   }
  }
