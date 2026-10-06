@@ -81,4 +81,4 @@ $('terrain-mode').onchange=()=>{$('interval-label').textContent=$('terrain-mode'
 
 $('refresh-model').onclick=()=>{if(!busy&&bounds&&window.contaSelection.valid)$('generate').onclick();};
 
-$('site-diagram').onclick=async()=>{if(!model||busy)return;$('site-diagram').disabled=true;try{const {openSiteDiagram}=await import('./site-diagram-ui.mjs?v=site3');openSiteDiagram(model,objects);}catch(e){status('SITE 다이어그램 생성 실패: '+e.message);}finally{$('site-diagram').disabled=!model;}};
+$('site-diagram').onclick=async()=>{if(!model||busy)return;$('site-diagram').disabled=true;try{const {openSiteDiagram}=await import('./site-diagram-ui.mjs?v=analysis1');openSiteDiagram(model,objects);}catch(e){status('SITE 다이어그램 생성 실패: '+e.message);}finally{$('site-diagram').disabled=!model;}};
