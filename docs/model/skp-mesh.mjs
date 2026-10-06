@@ -18,6 +18,9 @@ export function connectedMesh(positions,convert,factor){
  const faces=[];
  for(const ids of triangles){if(new Set(ids).size<3)continue;const ring=[];for(let i=0;i<3;i++)ring.push(...split(ids[i],ids[(i+1)%3]).slice(0,-1));if(ring.length===3)faces.push(ring.map(id=>vertices[id]));else{const center=ids.map(id=>vertices[id]).reduce((s,p)=>s.map((v,i)=>v+p[i]/3),[0,0,0]);for(let i=0;i<ring.length;i++)faces.push([center,vertices[ring[i]],vertices[ring[(i+1)%ring.length]]]);}}
  const valid=faces.filter(([a,b,c])=>{const u=b.map((v,i)=>v-a[i]),v=c.map((w,i)=>w-a[i]);return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])>=1e-9;});
- const edges=new Map();for(const face of valid)for(let i=0;i<3;i++){const a=face[i],b=face[(i+1)%3],k=[key(a),key(b)].sort().join('|');const entry=edges.get(k);if(entry)entry.count++;else edges.set(k,{points:[a,b],count:1});}
- return {faces:valid,boundaries:[...edges.values()].filter(e=>e.count===1).map(e=>e.points)};
+ const edges=new Map();for(const face of valid){const [a,b,c]=face,u=b.map((v,i)=>v-a[i]),v=c.map((w,i)=>w-a[i]),normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],length=Math.hypot(...normal),unit=normal.map(v=>v/length);
+  for(let i=0;i<3;i++){const a=face[i],b=face[(i+1)%3],k=[key(a),key(b)].sort().join('|');const entry=edges.get(k);if(entry){entry.count++;if(entry.normal.reduce((s,v,i)=>s+v*unit[i],0)<Math.cos(Math.PI/6))entry.crease=true;}else edges.set(k,{points:[a,b],count:1,normal:unit,crease:false});}
+ }
+ // Keep steep folds (including the terrain's vertical base walls) sharp.
+ return {faces:valid,boundaries:[...edges.values()].filter(e=>e.count===1||e.crease).map(e=>e.points)};
 }
