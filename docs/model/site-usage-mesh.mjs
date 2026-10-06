@@ -1,0 +1,4 @@
+export function usageMeshes(THREE,buildings){
+ const buckets=new Map();for(const building of buildings){const usage=building.usage||'용도 미상',shape=new THREE.Shape(building.poly[0].map(p=>new THREE.Vector2(...p)));for(const ring of building.poly.slice(1))shape.holes.push(new THREE.Path(ring.map(p=>new THREE.Vector2(...p))));const geometry=new THREE.ExtrudeGeometry(shape,{depth:building.roof-building.bottom,bevelEnabled:false,steps:1});geometry.translate(0,0,building.bottom);const positions=geometry.attributes.position.array;if(!buckets.has(usage))buckets.set(usage,[]);const bucket=buckets.get(usage);for(const value of positions)bucket.push(value);geometry.dispose();}
+ return [...buckets].map(([name,positions])=>{const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(positions),3));geometry.computeVertexNormals();return {name,geometry};});
+}
