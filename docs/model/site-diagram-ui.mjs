@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {analyses,planar,analysisDiagram} from './site-analysis.mjs?v=analysis1';
+import {analyses,planar,analysisDiagram} from './site-analysis.mjs?v=analysis2';
 import {diagramPdf} from './site-pdf.mjs?v=site3';
 import './building-use.js?v=site3';
 import {usageMeshes} from './site-usage-mesh.mjs?v=site3';

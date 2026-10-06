@@ -2,7 +2,7 @@ import {siteDiagram} from './site-diagram.mjs?v=site3';
 export const analyses=[
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],
  ['green','녹지·수공간','녹지, 하천, 바다 분포'],['routes','동선 구조','도로·철도 영역 · 교통량 분석 아님'],
- ['fabric','건물·빈 공간','건물 외곽선과 비건물 영역'],['usage','건물 용도','확인된 용도와 미상 구분'],
+ ['fabric','건물·빈 공간','건물 외곽선과 비건물 영역'],['use-map','건물 용도','확인된 용도와 미상 구분'],
  ['height','건물 높이','모델 높이 분포 · 추정값 포함'],['density','건물 밀도','격자별 건물 개수 / ha'],
  ['terrain','지형 고도','제어점 보간 · 영역 최저점 기준'],['view','선택 위치 시야','지형과 건물로 보는 예상 시야']
 ].map(([id,title,note])=>({id,title,note}));
@@ -17,7 +17,7 @@ export function analysisDiagram(cad,items,options,mode){
  let selected=items.map(i=>({...i})),settings={...options};
  if(mode==='green'||mode==='routes'){const focus=mode==='green'?['녹지','하천','바다']:['도로','철도'];selected=selected.map(i=>({...i,color:focus.includes(i.name)?i.color:'#e7e9ec'}));settings.usage=false;}
  if(mode==='fabric'){selected=selected.map(i=>({...i,color:i.name==='건물'?'#25313e':'#ffffff'}));settings.usage=false;}
- if(mode==='usage')settings.usage=true;
+ if(mode==='use-map')settings.usage=true;
  const overlay=['density','height','terrain'].includes(mode);
  if(overlay)selected=selected.filter(i=>i.name!=='건물'&&i.name!=='파라펫').map(i=>({...i,color:'#eceff2'}));
  const result=siteDiagram(cad,selected,{...settings,legend:overlay?false:settings.legend});
