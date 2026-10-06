@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=data-oct2','terrain-surface.js?v=official1');
+importScripts('building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=exclude1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{

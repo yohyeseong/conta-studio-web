@@ -1,13 +1,20 @@
 /* Shared map/generation policy. Source tagging is not a complete facility registry. */
 (function(root){
+// Temporary display/generation hold for the reported Yongsan area.
+// This rectangle is a review extent, NOT a legal/current military boundary.
+// Public returned park land may overlap; do not classify it as military.
+const reviewZones=[{id:'yongsan-review-20261006',bbox:[126.972,37.525,126.988,37.536],reason:'용산 일대 상세 표시·생성 경계 검토 중',sources:['https://www.parkyongsan.kr/front/lodging/land.do','https://yongsanparkstory.kr/intro/map.html']}];
+const reviewOverlap=b=>reviewZones.some(z=>overlaps(z.bbox,b));
+function assertReview(bounds){if(reviewOverlap(bounds))throw Error('선택 영역에 용산 일대 임시 제외 구역이 포함되어 있습니다. 공개 공원 일부를 포함해 경계 검토가 끝날 때까지 생성하지 않습니다.');}
 const has=(v,word)=>String(v||'').toLowerCase().split(';').map(s=>s.trim()).includes(word);
 function tagged(t={}){return (t.military!==undefined&&!['no','false','0',''].includes(String(t.military).toLowerCase()))||['landuse','access','building','aerodrome','operator:type'].some(k=>has(t[k],'military'));}
 function box(g){let out=[Infinity,Infinity,-Infinity,-Infinity];function walk(c){if(typeof c?.[0]==='number'){out[0]=Math.min(out[0],c[0]);out[1]=Math.min(out[1],c[1]);out[2]=Math.max(out[2],c[0]);out[3]=Math.max(out[3],c[1]);}else if(Array.isArray(c))c.forEach(walk);}walk(g?.coordinates);return Number.isFinite(out[0])?out:null;}
 const overlaps=(a,b)=>a&&b&&a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
 function inspect(osm){if(!osm||!Array.isArray(osm.elements)||osm.remark)throw Error('지도 제외 구역 확인에 실패했습니다. 다시 시도하세요.');const geo=osmtogeojson(osm,{flatProperties:true});const excluded=geo.features.filter(f=>tagged(f.properties));const zones=excluded.map(f=>box(f.geometry)).filter(Boolean);const safe=geo.features.filter(f=>{if(tagged(f.properties))return false;const b=box(f.geometry);return !zones.some(z=>overlaps(b,z));});return {geo:{type:'FeatureCollection',features:safe},zones};}
-function assertSelection(osm,bounds){const result=inspect(osm);if(result.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');return result;}
+function assertSelection(osm,bounds){assertReview(bounds);const result=inspect(osm);if(result.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');return result;}
 function query(b,zoom){const [w,s,e,n]=b,bbox=[s,w,n,e].join(',');const tags='^(building|building:part|highway|area:highway|landuse|leisure|natural|waterway|railway|military|access|aerodrome|operator:type)$';return `[out:json][timeout:45][maxsize:33554432];(nwr[~"${tags}"~"."](${bbox});node[place][name](${bbox}););out body;>;out skel qt;`;}
 
-function assertPrepared(value,bounds){if(!value||value.dataVersion!=='895aa1a4fe0bd79c-prepared2'||!Array.isArray(value.preparedGeo?.features)||!Array.isArray(value.zones))throw Error('가공 데이터 검증 실패');if(value.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');if(value.preparedGeo.features.some(f=>tagged(f.properties)))throw Error('제외 대상 데이터 검증 실패');return {geo:value.preparedGeo,zones:value.zones};}
-root.MilitaryPolicy={tagged,box,overlaps,inspect,assertSelection,assertPrepared,query};
+function assertPrepared(value,bounds){assertReview(bounds);if(!value||value.dataVersion!=='895aa1a4fe0bd79c-prepared2'||!Array.isArray(value.preparedGeo?.features)||!Array.isArray(value.zones))throw Error('가공 데이터 검증 실패');if(value.zones.some(z=>overlaps(z,bounds)))throw Error('선택 영역에 제외 대상 구역이 포함되어 있습니다. 다른 영역을 선택하세요.');if(value.preparedGeo.features.some(f=>tagged(f.properties)))throw Error('제외 대상 데이터 검증 실패');return {geo:value.preparedGeo,zones:value.zones};}
+root.MilitaryPolicy={tagged,box,overlaps,inspect,assertSelection,assertPrepared,query,reviewZones,reviewOverlap,assertReview};
 })(typeof self!=='undefined'?self:globalThis);
+
