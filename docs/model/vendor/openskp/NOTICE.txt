@@ -1,0 +1,8 @@
+OpenSKP TypeScript writer 1.3.0
+Source: https://github.com/iamahsanmehmood/openskp
+create.ts blob: 9a454e92216b1187e03785cea7447ac5429e3707
+scaffold.ts blob: cc128942fa8852a1c2b0c3db674d90b93858f8cf
+License: MIT; see LICENSE.
+The scaffold contains SDK-authored empty SketchUp document boilerplate disclosed in scaffold.mjs.
+No proprietary SDK is shipped or called at runtime.
+TypeScript transpiled with Node stripTypeScriptTypes; no third-party runtime dependencies.
