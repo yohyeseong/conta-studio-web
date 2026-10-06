@@ -1,4 +1,5 @@
 import {SkpBuilder} from './vendor/openskp/create.mjs';
+import {connectedMesh} from './skp-mesh.mjs';
 
 export function buildSkp(items,scale,cad,progress=()=>{}){
  if(!Number.isFinite(scale)||scale<1||scale>100000)throw Error('축척은 1–100000 범위로 입력하세요.');
@@ -43,7 +44,11 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
    builder.addGroup(group=>{
     const p=item.positions;
     if(item.lines){for(let i=0;i<p.length;i+=6)group.addPolyline([point(Array.from(p.slice(i,i+3))),point(Array.from(p.slice(i+3,i+6)))],{material});}
-    else for(let i=0;i<p.length;i+=9){const ring=[0,3,6].map(j=>point(Array.from(p.slice(i+j,i+j+3))));if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}
+    else{const mesh=connectedMesh(p,point,factor);
+     // Create hard perimeter edges first: smooth only interior shared edges.
+     for(const edge of mesh.boundaries)group.addPolyline(edge,{material});
+     for(const ring of mesh.faces){if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}
+    }
    },{name:item.name,material,layer});groups++;
   }
  }
