@@ -1,5 +1,6 @@
-import {siteDiagram} from './site-diagram.mjs?v=design1';
+import {siteDiagram} from './site-diagram.mjs?v=gis1';
 export const analyses=[
+ ['gis','GIS 전체 자료','확보된 모든 레이어 · 명칭·건물 상세값'],
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],
  ['green','녹지·수공간','녹지, 하천, 바다 분포'],['routes','동선 구조','도로·철도 영역 · 교통량 분석 아님'],
  ['fabric','건물·빈 공간','건물 외곽선과 비건물 영역'],['use-map','건물 용도','확인된 용도와 미상 구분'],
