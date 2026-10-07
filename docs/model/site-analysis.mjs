@@ -1,5 +1,5 @@
-import {drawBuildingAnalysis} from './site-building-analysis.mjs?v=legend1';
-import {siteDiagram} from './site-diagram.mjs?v=legend1';
+import {drawBuildingAnalysis,buildingAnalysis} from './site-building-analysis.mjs?v=legend2';
+import {siteDiagram} from './site-diagram.mjs?v=legend2';
 export const analyses=[
  ['gis','GIS 전체 자료','확보된 모든 레이어 · 명칭·건물 상세값'],
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],
@@ -39,7 +39,7 @@ export function analysisDiagram(cad,items,options,mode){
  if(mode==='green'||mode==='routes')settings.usage=false;
  if(mode==='fabric'){selected=selected.map(i=>({...i,color:i.name==='건물'?'#25313e':'#ffffff'}));settings.usage=false;}
  if(mode==='use-map')settings.usage=true;
- const buildingMode=['building','height','use-map'].includes(mode);const overlay=buildingMode||['density','terrain'].includes(mode);if(buildingMode){settings.usage=false;settings.gisLabels='none';}
+ const buildingMode=['building','height','use-map'].includes(mode);const overlay=buildingMode||['density','terrain'].includes(mode);if(buildingMode){settings.usage=false;settings.gisLabels='none';const field=mode==='height'?'height':mode==='use-map'?'usage':options.buildingField||'levels',a=buildingAnalysis(cad,field,settings),available=a.values.filter(v=>v!==null).length;settings.stats[2]={label:'분류 가능한 건물',value:available.toLocaleString()+' / '+cad.buildings.length.toLocaleString()};}
  if(overlay)selected=selected.filter(i=>i.name!=='건물'&&i.name!=='파라펫');
  const result=siteDiagram(cad,selected,{...settings,legend:overlay?false:settings.legend});
  if(buildingMode){const field=mode==='height'?'height':mode==='use-map'?'usage':options.buildingField||'levels';if(!items.some(i=>i.name==='건물'))return result;return drawBuildingAnalysis(result,cad,field,settings);}

@@ -1,4 +1,4 @@
-import {usageCodes,structureCodes} from './building-legend.mjs?v=legend1';
+import {usageCodes,structureCodes} from './building-legend.mjs?v=legend2';
 const esc=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 export const buildingFields={
  height:{name:'건물 높이',unit:'m',limits:[10,20,40,80],aliases:['HEIGHT','height']},

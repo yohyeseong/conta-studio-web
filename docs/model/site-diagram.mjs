@@ -1,5 +1,5 @@
 import './building-use.js?v=site3';
-import {gisLabels} from './site-gis.mjs?v=legend1';
+import {gisLabels} from './site-gis.mjs?v=legend2';
 // Plan diagrams use original polygon boundaries instead of projected mesh triangles.
 export function siteDiagram(cad,items,options={}){
  const w=cad.terrain.w,h=cad.terrain.h;if(!(w>0&&h>0))throw Error('생성된 모델의 영역 정보가 없습니다.');
