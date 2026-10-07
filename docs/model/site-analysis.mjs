@@ -1,10 +1,11 @@
-import {siteDiagram} from './site-diagram.mjs?v=gis4';
+import {drawBuildingAnalysis} from './site-building-analysis.mjs?v=legend1';
+import {siteDiagram} from './site-diagram.mjs?v=legend1';
 export const analyses=[
  ['gis','GIS 전체 자료','확보된 모든 레이어 · 명칭·건물 상세값'],
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],
  ['green','녹지·수공간','녹지, 하천, 바다 분포'],['routes','동선 구조','도로·철도 영역 · 교통량 분석 아님'],
  ['fabric','건물·빈 공간','건물 외곽선과 비건물 영역'],['use-map','건물 용도','확인된 용도와 미상 구분'],
- ['height','건물 높이','모델 높이 분포 · 추정값 포함'],['density','건물 밀도','격자별 건물 개수 / ha'],
+ ['building','건물 속성','엑셀 기준 · 용도·층수·구조·면적'],['height','건물 높이','모델 높이 분포 · 추정값 포함'],['density','건물 밀도','격자별 건물 개수 / ha'],
  ['terrain','지형 고도','제어점 보간 · 영역 최저점 기준'],['view','선택 위치 시야','지형과 건물로 보는 예상 시야']
 ].map(([id,title,note])=>({id,title,note}));
 export const planar=id=>!['volume','view'].includes(id);
@@ -38,17 +39,13 @@ export function analysisDiagram(cad,items,options,mode){
  if(mode==='green'||mode==='routes')settings.usage=false;
  if(mode==='fabric'){selected=selected.map(i=>({...i,color:i.name==='건물'?'#25313e':'#ffffff'}));settings.usage=false;}
  if(mode==='use-map')settings.usage=true;
- const overlay=['density','height','terrain'].includes(mode);
+ const buildingMode=['building','height','use-map'].includes(mode);const overlay=buildingMode||['density','terrain'].includes(mode);if(buildingMode){settings.usage=false;settings.gisLabels='none';}
  if(overlay)selected=selected.filter(i=>i.name!=='건물'&&i.name!=='파라펫');
  const result=siteDiagram(cad,selected,{...settings,legend:overlay?false:settings.legend});
+ if(buildingMode){const field=mode==='height'?'height':mode==='use-map'?'usage':options.buildingField||'levels';if(!items.some(i=>i.name==='건물'))return result;return drawBuildingAnalysis(result,cad,field,settings);}
  if(!overlay)return result;
  const l=result.layout,xy=p=>[l.left+(p[0]+l.w/2)*l.scale,l.top+(l.h/2-p[1])*l.scale],path=poly=>poly.map(r=>r.map((p,i)=>(i?'L':'M')+xy(p).join(' ')).join(' ')+'Z').join(' ');
  let shapes='',labels=[],note='';
- if(mode==='height'){
-  const colors=['#d7e8ef','#a4cedb','#74a6c6','#526f9e','#423f73'],limits=[10,20,40,80,Infinity];labels=['10m 미만','10–20m','20–40m','40–80m','80m 이상'];
-  cad.buildings.forEach(b=>{const value=Math.max(0,b.roof-b.bottom),color=colors[limits.findIndex(v=>value<v)];shapes+=`<path d="${path(b.poly)}" fill="${color}" fill-rule="evenodd" stroke="${settings.outline?'#374151':color}" stroke-width=".65"/>`;});
-  note='모델의 지붕–바닥 높이 · 원본 높이와 층수·기본 층고 추정값이 함께 포함됩니다.';labels=labels.map((name,i)=>({name,color:colors[i]}));
- }
  if(mode==='density'){
   const size=Math.max(25,Number(options.grid)||100),cells=buildingDensity(cad,size),limits=[10,25,50,100,Infinity];labels=['10 미만','10–25','25–50','50–100','100 이상'].map((name,i)=>({name:name+' 개/ha',color:['#f7f0df','#e9d49b','#deb170','#cb8554','#a3503b'][i]}));
   for(const cell of cells){const [x,y]=xy([cell.x,cell.y+cell.h]);shapes+=`<rect x="${x}" y="${y}" width="${cell.w*l.scale}" height="${cell.h*l.scale}" fill="${['#f7f0df','#e9d49b','#deb170','#cb8554','#a3503b'][limits.findIndex(v=>cell.value<v)]}" stroke="white" stroke-width=".4"/>`;}
