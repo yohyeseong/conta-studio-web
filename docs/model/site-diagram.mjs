@@ -1,10 +1,10 @@
 import './building-use.js?v=site3';
-import {gisLabels} from './site-gis.mjs?v=gis2';
+import {gisLabels} from './site-gis.mjs?v=gis4';
 // Plan diagrams use original polygon boundaries instead of projected mesh triangles.
 export function siteDiagram(cad,items,options={}){
  const w=cad.terrain.w,h=cad.terrain.h;if(!(w>0&&h>0))throw Error('생성된 모델의 영역 정보가 없습니다.');
  const width=1400,mapHeight=Math.max(420,Math.min(1400,1304*h/w)),height=Math.ceil(mapHeight+340),scale=Math.min(1304/w,mapHeight/h),left=(width-w*scale)/2,top=150+(mapHeight-h*scale)/2;
- const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+ const escape=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
  const number=v=>Number(v.toFixed(3)),xy=p=>[number(left+(p[0]+w/2)*scale),number(top+(h/2-p[1])*scale)];
  const path=poly=>poly.map(r=>r.map((p,i)=>(i?'L':'M')+xy(p).join(' ')).join(' ')+'Z').join(' ');
  const parts=[],legend=[],byName=new Map(items.map(i=>[i.name,i]));

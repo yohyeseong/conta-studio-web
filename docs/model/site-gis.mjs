@@ -1,4 +1,4 @@
-const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+const escape=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 export function buildingLabel(b,field){
  const p=b.properties||{},name=p.name||p['name:ko'],levels=p['building:levels'],basement=p['building:levels:underground'],height=Number(p.height),use=b.usage&&b.usage!=='용도 미상'?b.usage:null;
  const h=b.heightEstimated===false&&Number.isFinite(b.height)?b.height.toFixed(1)+'m':height>0?height.toFixed(1)+'m':Number.isFinite(b.roof-b.bottom)?'약 '+(b.roof-b.bottom).toFixed(1)+'m (추정)':'';
