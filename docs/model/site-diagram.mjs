@@ -1,18 +1,18 @@
 import './building-use.js?v=site3';
-import {gisLabels} from './site-gis.mjs?v=zip3';
+import {gisLabels} from './site-gis.mjs?v=lines1';
 // Plan diagrams use original polygon boundaries instead of projected mesh triangles.
 export function siteDiagram(cad,items,options={}){
  const w=cad.terrain.w,h=cad.terrain.h;if(!(w>0&&h>0))throw Error('생성된 모델의 영역 정보가 없습니다.');
- const width=1400,mapHeight=Math.max(420,Math.min(1400,1304*h/w)),height=Math.ceil(mapHeight+340),scale=Math.min(1304/w,mapHeight/h),left=(width-w*scale)/2,top=150+(mapHeight-h*scale)/2;
+ const width=1400,mapHeight=Math.max(420,Math.min(1400,1304*h/w)),height=Math.ceil(mapHeight+340+Math.max(0,Math.ceil(items.length/8)-2)*25),scale=Math.min(1304/w,mapHeight/h),left=(width-w*scale)/2,top=150+(mapHeight-h*scale)/2;
  const escape=s=>String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
  const number=v=>Number(v.toFixed(3)),xy=p=>[number(left+(p[0]+w/2)*scale),number(top+(h/2-p[1])*scale)];
  const path=poly=>poly.map(r=>r.map((p,i)=>(i?'L':'M')+xy(p).join(' ')).join(' ')+'Z').join(' ');
  const parts=[],legend=[],byName=new Map(items.map(i=>[i.name,i]));
- for(const name of ['대지','바다','하천','녹지','도로','인도','철도','등고선','건물','파라펫']){
+ for(const name of ['대지','바다','하천','녹지','도로','인도','횡단보도','철도','등고선','건물','파라펫',...items.filter(i=>i.name.startsWith('원본 선')).map(i=>i.name)]){
   const item=byName.get(name);if(!item)continue;
   const color=/^#[\da-f]{6}$/i.test(item.color)?item.color:'#aaaaaa';
   let polys=name==='대지'?cad.terrain.polygons:name==='건물'?cad.buildings.map(b=>b.poly):name==='파라펫'?cad.parapets.map(b=>b.poly):cad.covers[name]||[];
-  if(name==='등고선'){const p=item.positions;let d='';for(let i=0;i<p.length;i+=6)d+='M'+xy([p[i],p[i+1]]).join(' ')+'L'+xy([p[i+3],p[i+4]]).join(' ');parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width=".6" opacity=".55"/>`);}
+  if(item.lines){const p=item.positions;let d='';for(let i=0;i<p.length;i+=6)d+='M'+xy([p[i],p[i+1]]).join(' ')+'L'+xy([p[i+3],p[i+4]]).join(' ');parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width=".6" opacity=".55"/>`);}
   else if(name==='건물'&&options.usage){const buckets=new Map();for(const b of cad.buildings){const use=b.usage||'용도 미상';if(!buckets.has(use))buckets.set(use,[]);buckets.get(use).push(b.poly);}for(const [use,polys] of buckets){const fill=ContaBuildingUse.colors[use]||ContaBuildingUse.colors['용도 미상'];parts.push(`<path d="${polys.map(path).join(' ')}" fill="${fill}" fill-rule="evenodd" stroke="${options.outline===false?fill:'#374151'}" stroke-width=".7"/>`);legend.push({name:use,color:fill});}continue;}
   else if(polys.length)parts.push(`<path d="${polys.map(path).join(' ')}" fill="${color}" fill-rule="evenodd" stroke="${name==='건물'&&options.outline!==false?'#374151':color}" stroke-width="${name==='건물'&&options.outline!==false?'.7':'.2'}" stroke-linejoin="round"/>`);
   else continue;

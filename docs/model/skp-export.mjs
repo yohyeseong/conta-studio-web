@@ -37,7 +37,7 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
   }else if(cad.terrain.bands&&!item.lines){
    let count=0;for(const band of cad.terrain.bands){
     const polys=item.name==='대지'?band.polygons:band.covers[item.name]||[];
-    const offset=item.name==='대지'?0:(item.name==='철도'?.05:.025)-(cad.terrain.lowerStep&&['도로','하천','바다'].includes(item.name)?cad.terrain.interval:0);
+    const offset=-(cad.terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(item.name)?cad.terrain.interval:0);
     for(const poly of polys)prism({poly,bottom:cad.terrain.base,roof:band.level+offset},item,item.name+' '+(++count),item.name==='철도');
    }
   }else{
@@ -55,3 +55,4 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
  if(!groups)throw Error('저장할 도형이 없습니다.');
  progress(98,'SketchUp 파일 구성 중');return {bytes:builder.toBytes(),groups,faces};
 }
+

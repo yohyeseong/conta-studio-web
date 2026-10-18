@@ -1,4 +1,4 @@
-import {polygonizeBoundaries} from './ngii-boundary.mjs?v=zip3';
+import {polygonizeBoundaries} from './ngii-boundary.mjs?v=lines1';
 // Read only the road/sidewalk members. Large terrain layers are never inflated.
 const decoder=new TextDecoder('utf-8'),overlap=(a,b)=>a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
 const fail=message=>{throw Error(message);};
@@ -70,20 +70,24 @@ export function shapeRecords(b,records,project){
  if(index!==records.length)fail('SHP와 DBF의 레코드 수가 다릅니다.');return result;
 }
 export async function importNgiiZip(blob,proj4,onProgress=()=>{}){
- onProgress('ZIP의 도로·인도 목록 확인 중',5);const directory=await zipDirectory(blob),layers=[...directory].filter(([name])=>/\.shp$/i.test(name)&&/^(?:n3[alp]_)?a00[123]/i.test(name.split('/').at(-1))),features=[],references=[],warnings=[],summary=[];let bbox=[Infinity,Infinity,-Infinity,-Infinity];
+ onProgress('ZIP의 원본 선·도로 목록 확인 중',5);const directory=await zipDirectory(blob),layers=[...directory].filter(([name])=>/\.shp$/i.test(name)&&/^(?:n\d[al]_)?[abcdefh]\d{3}/i.test(name.split('/').at(-1))),features=[],references=[],sourceLines=[],warnings=[],summary=[];let bbox=[Infinity,Infinity,-Infinity,-Infinity];
  if(layers.length>200||[...directory].filter(([name])=>layers.some(([key])=>name.slice(0,name.lastIndexOf('.'))===key.slice(0,-4))).reduce((sum,[,e])=>sum+e.length,0)>250*1024**2)fail('도로·인도 자료가 너무 큽니다. 영역을 나누어 불러오세요.');
  if(!layers.length)fail('도로경계 A001·도로중심선 A002·인도 A003 SHP를 찾지 못했습니다.');
  for(let i=0;i<layers.length;i++){
-  const [key,entry]=layers[i],stem=key.slice(0,-4),code=stem.split('/').at(-1).match(/a00[123]/i)[0].toUpperCase();onProgress(entry.name+' 읽는 중',10+Math.round(i/layers.length*75));
+  const [key,entry]=layers[i],stem=key.slice(0,-4),code=stem.split('/').at(-1).match(/[abcdefh]\d{3}/i)[0].toUpperCase();onProgress(entry.name+' 읽는 중',10+Math.round(i/layers.length*75));
   const dbf=directory.get(stem+'.dbf'),prj=directory.get(stem+'.prj');if(!dbf||!prj)fail(entry.name+'의 DBF 또는 PRJ가 빠져 있습니다.');
   const cpg=directory.get(stem+'.cpg'),encoding=cpg?decoder.decode(await zipMember(blob,cpg)).trim():'euc-kr',wkt=decoder.decode(await zipMember(blob,prj));let conversion;
   try{conversion=proj4(wkt,'EPSG:4326');}catch{fail(entry.name+'의 좌표계를 읽지 못했습니다.');}
   const records=dbfRecords(await zipMember(blob,dbf),encoding),shapes=shapeRecords(await zipMember(blob,entry),records,p=>conversion.forward(p));let imported=0,skipped=0;
   for(const f of shapes){const p=f.properties,polygon=f.geometry.type==='MultiPolygon';f.id='ngii/'+stem+'/'+(p.ufid||p.gid||imported+skipped);p.source_layer=entry.name;p.geometry_source='국토정보플랫폼 연속수치지도';p.ngii_import=true;
-   if(code==='A001'&&polygon){p['area:highway']='road';p.ngii_kind='road';features.push(f);imported++;}
+   const label=({A001:'도로경계',A002:'도로중심선',A003:'인도경계',A004:'횡단보도',A005:'안전지대',A006:'육교',A007:'교량',A008:'교차로',A009:'입체교차부',A016:'철도경계',A017:'철도중심선',B001:'건물경계',B002:'담장',F001:'원본 등고선',H001:'행정경계'})[code]||code;
+   const coordinates=polygon?f.geometry.coordinates.flat():f.geometry.coordinates;
+   sourceLines.push({...f,geometry:{type:'MultiLineString',coordinates},properties:{...p,source_line_layer:'원본 선 · '+label}});
+   if(code==='A004'&&polygon){p.ngii_kind='crosswalk';features.push(f);imported++;}
+   else if(code==='A001'&&polygon){p['area:highway']='road';p.ngii_kind='road';features.push(f);imported++;}
    else if(code==='A003'){
     p.ngii_kind='sidewalk';p.ngii_sidewalk=true;p.highway='footway';features.push(f);imported++;
-   }else{p.ngii_kind='reference';references.push(f);skipped++;}
+   }else{p.ngii_kind='reference';if(['A001','A002'].includes(code))references.push(f);skipped++;}
   }
   summary.push({layer:entry.name,code,records:records.length,imported,references:skipped});
  }
@@ -103,6 +107,7 @@ export async function importNgiiZip(blob,proj4,onProgress=()=>{}){
  const boundaryStats={records:rawSidewalks.length,faces:derived.length,openSegments:boundary.openSegments.length,tolerance:boundary.tolerance,ambiguousFaces};
  if(ambiguousFaces)warnings.push('인도로 확인되지 않은 닫힌 영역 '+ambiguousFaces+'개는 면을 만들지 않았습니다.');
  if(boundary.openSegments.length)warnings.push('닫히지 않은 인도 경계 '+boundary.openSegments.length+'구간은 면을 만들지 않았습니다.');
- onProgress('도로·인도 좌표 변환 완료',100);return {features,references,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-zip3'};
+ const crosswalks=sourceLines.filter(f=>f.properties.source_line_layer==='원본 선 · 횡단보도').length;
+ onProgress('도로·인도 좌표 변환 완료',100);return {features,references,sourceLines,crosswalks,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-lines1'};
 }
-export const featuresForBounds=(dataset,bounds,sidewalks=true)=>({...dataset,features:dataset.features.filter(f=>overlap(f.bbox,bounds)&&(sidewalks||f.properties.ngii_kind!=='sidewalk')),references:dataset.references.filter(f=>overlap(f.bbox,bounds))});
+export const featuresForBounds=(dataset,bounds,sidewalks=true)=>({...dataset,features:dataset.features.filter(f=>overlap(f.bbox,bounds)&&(sidewalks||f.properties.ngii_kind!=='sidewalk')),references:dataset.references.filter(f=>overlap(f.bbox,bounds)),sourceLines:(dataset.sourceLines||[]).filter(f=>overlap(f.bbox,bounds))});

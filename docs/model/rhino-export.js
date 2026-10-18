@@ -19,8 +19,12 @@ function buildRhinoFile(rhino,items,scale,cad){
     if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
-    else if(['도로','인도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
-    else if(item.lines){for(let i=0;i<p.length;i+=6){const a=Array.from(p.slice(i,i+3),v=>v*factor),b=Array.from(p.slice(i+3,i+6),v=>v*factor);doc.objects().addLine(a,b,attr);expected++;}}
+    else if(['도로','인도','횡단보도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
+    else if(item.lines){
+     let chain=[];const same=(a,b)=>a&&b&&a.every((v,i)=>v===b[i]);
+     const flush=()=>{if(chain.length>1){const curve=new rhino.PolylineCurve(chain);try{if(!curve.isValid)throw Error('원본 선 검증에 실패했습니다.');doc.objects().addCurve(curve,attr);expected++;}finally{curve.delete();}}chain=[];};
+     for(let i=0;i<p.length;i+=6){const a=Array.from(p.slice(i,i+3),v=>v*factor),b=Array.from(p.slice(i+3,i+6),v=>v*factor);if(same(a,b))continue;if(chain.length&&!same(chain.at(-1),a))flush();if(!chain.length)chain.push(a);chain.push(b);}flush();
+    }
     else{const mesh=new rhino.Mesh(),lookup=new Map();try{
      const vertex=i=>{const a=[p[i]*factor,p[i+1]*factor,p[i+2]*factor],key=a.join(',');if(!lookup.has(key))lookup.set(key,mesh.vertices().add(...a));return lookup.get(key);};
      for(let i=0;i<p.length;i+=9){const a=vertex(i),b=vertex(i+3),c=vertex(i+6);if(a!==b&&b!==c&&a!==c)mesh.faces().addTriFace(a,b,c);}
@@ -31,7 +35,7 @@ function buildRhinoFile(rhino,items,scale,cad){
   if(!expected)throw Error('표시한 레이어가 없습니다.');
   const options=new rhino.File3dmWriteOptions();let bytes;try{options.version=7;bytes=doc.toByteArrayOptions(options);}finally{options.delete();}
   reopened=rhino.File3dm.fromByteArray(bytes);if(!reopened||reopened.objects().count!==expected)throw Error('Rhino 파일 검증에 실패했습니다.');
-  for(let i=0;i<reopened.objects().count;i++){const geometry=reopened.objects().get(i).geometry();try{if(!geometry.isValid)throw Error('저장된 객체 검증에 실패했습니다.');}finally{geometry.delete();}}
+  for(let i=0;i<reopened.objects().count;i++){const object=reopened.objects().get(i);if(!object)throw Error('Rhino 객체 읽기 실패: '+i+' / '+expected);const geometry=object.geometry();if(!geometry)throw Error('Rhino 도형 읽기 실패: '+i+' / '+expected);try{if(!geometry.isValid)throw Error('저장된 객체 검증에 실패했습니다.');}finally{geometry.delete();}}
   return bytes;
  }finally{if(reopened)reopened.delete();doc.delete();}
 }
