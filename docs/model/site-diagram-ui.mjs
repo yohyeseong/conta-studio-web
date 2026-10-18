@@ -1,6 +1,6 @@
-import {buildingFields} from './site-building-analysis.mjs?v=legend2';
+import {buildingFields} from './site-building-analysis.mjs?v=zip1';
 import * as THREE from 'three';
-import {analyses,planar,analysisDiagram,diagramTheme} from './site-analysis.mjs?v=legend2';
+import {analyses,planar,analysisDiagram,diagramTheme} from './site-analysis.mjs?v=zip1';
 import {diagramPdf} from './site-pdf.mjs?v=site3';
 import './building-use.js?v=site3';
 import {usageMeshes} from './site-usage-mesh.mjs?v=site3';
@@ -64,3 +64,4 @@ export function openSiteDiagram(model,objects){
  for(const a of analyses){if(!planar(a.id))continue;const result=analysisDiagram(model.cad,allItems.filter(i=>i.enabled),{...settings(),title:a.title,north:false,legend:false,gisLabels:'none',gisNames:false,buildingLimits:''},a.id);const thumb=$('site-'+a.id).querySelector('img');const l=result.layout,crop=result.svg.replace(`viewBox="0 0 ${result.width} ${result.height}"`,`viewBox="${l.left} ${l.top} ${l.w*l.scale} ${l.h*l.scale}" preserveAspectRatio="xMidYMid slice"`);thumb.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(crop);}
  select('gis');
 }
+

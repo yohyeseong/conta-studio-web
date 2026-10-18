@@ -1,5 +1,5 @@
-import {drawBuildingAnalysis,buildingAnalysis} from './site-building-analysis.mjs?v=legend2';
-import {siteDiagram} from './site-diagram.mjs?v=legend2';
+import {drawBuildingAnalysis,buildingAnalysis} from './site-building-analysis.mjs?v=zip1';
+import {siteDiagram} from './site-diagram.mjs?v=zip1';
 export const analyses=[
  ['gis','GIS 전체 자료','확보된 모든 레이어 · 명칭·건물 상세값'],
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],
@@ -17,7 +17,7 @@ export function buildingDensity(cad,size=100){
 const palette=['#f0ead1','#d8d59c','#b4be7a','#899b64','#596f53'];
 export function diagramTheme(items,mode,style){
  if(style==='custom')return items;
- const base={'대지':'#f4f1e9','건물':'#d49a84','도로':'#ffffff','녹지':'#b9c7a3','하천':'#88bdce','바다':'#88bdce','철도':'#72818a','등고선':'#b5b6a7','파라펫':'#9d6d5e'};
+ const base={'대지':'#f4f1e9','건물':'#d49a84','인도':'#c8b69b','도로':'#ffffff','녹지':'#b9c7a3','하천':'#88bdce','바다':'#88bdce','철도':'#72818a','등고선':'#b5b6a7','파라펫':'#9d6d5e'};
  if(mode==='green')Object.assign(base,{'건물':'#e0e1da','도로':'#ffffff','녹지':'#5e8f66','철도':'#b1b8b8'});
  if(mode==='routes')Object.assign(base,{'건물':'#d6d9d8','도로':'#c87358','녹지':'#e6e7dc','철도':'#3e6c81'});
  if(mode==='use-map')Object.assign(base,{'건물':'#d8dad6','녹지':'#e6e8dd'});
@@ -67,3 +67,4 @@ export function analysisDiagram(cad,items,options,mode){
  result.svg=result.svg.replace('<!--ANALYSIS-OVERLAY-->',shapes).replace('<!--ANALYSIS-LEGEND-->',legend).replace('<!--ANALYSIS-NOTE-->',note);
  return result;
 }
+
