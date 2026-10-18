@@ -55,15 +55,15 @@ function cadCover(r,terrain,polygons,factor,add,name){
  if(terrain.bands){
   for(const band of terrain.bands){const polys=band.covers[name];if(!polys?.length)continue;
    if(name==='철도'){cadCover(r,{...terrain,bands:null,points:terrain.points.map(p=>[p[0],p[1],band.level])},polys,factor,add,name);continue;}
-   for(const poly of polys){const offset=terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?terrain.sidewalkDepth:(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0);const solid=cadBuilding(r,{poly,bottom:terrain.sidewalkVolume&&name==='인도'?band.level-terrain.sidewalkDepth:terrain.base,roof:band.level-offset},factor);try{add(solid,name);}finally{solid.delete();}}
+   for(const poly of polys){const offset=terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?terrain.sidewalkDepth:(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0);const solid=cadBuilding(r,{poly,bottom:(name==='경계석'||terrain.sidewalkVolume&&name==='인도')?band.level-.2:terrain.base,roof:band.level-offset},factor);try{add(solid,name);}finally{solid.delete();}}
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
- if(terrain.sidewalkVolume&&name==='인도'){
+ if(name==='경계석'||terrain.sidewalkVolume&&name==='인도'){
   if(typeof r.createTerrainSolidBrep!=='function')throw Error('NURBS 저장 모듈을 새로 불러온 뒤 다시 저장하세요.');
-  for(const poly of clean){const solid=r.createTerrainSolidBrep({...terrain,points:terrain.points,polygons:[poly],factor,solidThickness:terrain.sidewalkDepth});
+  for(const poly of clean){const solid=r.createTerrainSolidBrep({...terrain,points:terrain.points,polygons:[poly],factor,solidThickness:.2});
    if(!solid||!solid.isValid||!solid.isSolid||!solid.isManifold){if(solid)solid.delete();throw Error('200mm 인도 NURBS 솔리드 검증에 실패했습니다.');}
-   try{add(solid,'인도 · 200mm NURBS 솔리드');}finally{solid.delete();}
+   try{add(solid,name+' · 200mm NURBS 솔리드');}finally{solid.delete();}
   }return;
  }
  const offset=terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?terrain.sidewalkDepth:(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0);

@@ -1,12 +1,12 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('surface-volume.js?v=curb1','ngii-roads.js?v=curb1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=exclude1','terrain-surface.js?v=official1');
+importScripts('surface-volume.js?v=curb1','ngii-roads.js?v=curbstone1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=exclude1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
  try{return polygonClipping[name](...args);}catch(original){for(const scale of [1000,100]){try{return polygonClipping[name](...args.map(a=>rounded(a,scale)));}catch{}}throw original;}
 }]));
 function unionAll(polys){let level=[];for(let i=0;i<polys.length;i+=80){const batch=polys.slice(i,i+80).filter(p=>p.length);if(batch.length)level.push(pc.union(...batch));}while(level.length>1){const next=[];for(let i=0;i<level.length;i+=2)next.push(i+1<level.length?pc.union(level[i],level[i+1]):level[i]);level=next;}return level[0]||[];}
-function bufferLine(line,width,extent){const pieces=[],r=width/2;for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];if(extent&&(Math.max(a[0],b[0])+r<extent[0]||Math.min(a[0],b[0])-r>extent[2]||Math.max(a[1],b[1])+r<extent[1]||Math.min(a[1],b[1])-r>extent[3]))continue;const d=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!d)continue;const x=-(b[1]-a[1])*r/d,y=(b[0]-a[0])*r/d;pieces.push([[[a[0]+x,a[1]+y],[b[0]+x,b[1]+y],[b[0]-x,b[1]-y],[a[0]-x,a[1]-y],[a[0]+x,a[1]+y]]]);}for(let index=0;index<line.length;index++){const p=line[index];if(extent&&(p[0]+r<extent[0]||p[0]-r>extent[2]||p[1]+r<extent[1]||p[1]-r>extent[3]))continue;if(index>0&&index<line.length-1){const a=line[index-1],b=line[index+1],ux=p[0]-a[0],uy=p[1]-a[1],vx=b[0]-p[0],vy=b[1]-p[1],product=Math.hypot(ux,uy)*Math.hypot(vx,vy);if(product>0&&ux*vx+uy*vy>0&&Math.abs(ux*vy-uy*vx)/product<1e-10)continue;}const ring=[];for(let j=0;j<=12;j++)ring.push([p[0]+r*Math.cos(j*Math.PI/6),p[1]+r*Math.sin(j*Math.PI/6)]);pieces.push([ring]);}return unionAll(pieces);}
+function bufferLine(line,width,extent,segments=12){const pieces=[],r=width/2;for(let i=1;i<line.length;i++){const a=line[i-1],b=line[i];if(extent&&(Math.max(a[0],b[0])+r<extent[0]||Math.min(a[0],b[0])-r>extent[2]||Math.max(a[1],b[1])+r<extent[1]||Math.min(a[1],b[1])-r>extent[3]))continue;const d=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!d)continue;const x=-(b[1]-a[1])*r/d,y=(b[0]-a[0])*r/d;pieces.push([[[a[0]+x,a[1]+y],[b[0]+x,b[1]+y],[b[0]-x,b[1]-y],[a[0]-x,a[1]-y],[a[0]+x,a[1]+y]]]);}for(let index=0;index<line.length;index++){const p=line[index];if(extent&&(p[0]+r<extent[0]||p[0]-r>extent[2]||p[1]+r<extent[1]||p[1]-r>extent[3]))continue;if(index>0&&index<line.length-1){const a=line[index-1],b=line[index+1],ux=p[0]-a[0],uy=p[1]-a[1],vx=b[0]-p[0],vy=b[1]-p[1],product=Math.hypot(ux,uy)*Math.hypot(vx,vy);if(product>0&&ux*vx+uy*vy>0&&Math.abs(ux*vy-uy*vx)/product<1e-10)continue;}const ring=[];for(let j=0;j<=segments;j++)ring.push([p[0]+r*Math.cos(j*2*Math.PI/segments),p[1]+r*Math.sin(j*2*Math.PI/segments)]);pieces.push([ring]);}return unionAll(pieces);}
 class MeshPositions{
  constructor(){this.blocks=[];this.used=0;this.length=0;this.block=null;}
  push(...values){for(const value of values){if(!this.block||this.used===this.block.length){this.block=new Float32Array(65536);this.blocks.push(this.block);this.used=0;}this.block[this.used++]=value;this.length++;}}
@@ -23,7 +23,7 @@ const meshHeights=stepped?null:Array.from({length:(n+1)*(n+1)},(_,id)=>surface.h
 function meshHeight(x,y){const u=Math.max(0,Math.min(n-1e-9,(x+w/2)/dx)),v=Math.max(0,Math.min(n-1e-9,(y+h/2)/dy)),i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,at=(ii,jj)=>meshHeights[jj*(n+1)+ii];return b<=a?at(i,j)*(1-a)+at(i+1,j)*(a-b)+at(i+1,j+1)*b:at(i,j)*(1-b)+at(i+1,j+1)*a+at(i,j+1)*(b-a);}
 const xy=c=>[(c[0]-center[0])*111319.490793*Math.cos(center[1]*Math.PI/180),(c[1]-center[1])*111319.490793];
 const rect=[[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]]];
-const gisFeatures=[];const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[],'인도':[],'횡단보도':[]},buildings=[];let skipped=0,estimated=0;
+const gisFeatures=[];const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[],'인도':[],'횡단보도':[],'경계석':[]},buildings=[];let skipped=0,estimated=0;
 const geo=(d.osm.preparedGeo?MilitaryPolicy.assertPrepared(d.osm,d.bounds):MilitaryPolicy.assertSelection(d.osm,d.bounds||[-180,-90,180,90])).geo;
 let processed=0;for(const f of [...geo.features].sort((a,b)=>String(a.id).localeCompare(String(b.id)))){if(++processed%1000===0)report({progress:60+Math.round(processed/geo.features.length*4),message:'주변 요소 처리 중 · '+processed.toLocaleString()+' / '+geo.features.length.toLocaleString()});const t=f.properties||{},g=f.geometry;if(!g)continue;const cat=(t.building&&t.building!=='no')||(t['building:part']&&t['building:part']!=='no')?'건물':t.highway||t['area:highway']?'도로':t.waterway||t.natural==='water'?'하천':t.railway?'철도':['grass','forest','meadow','orchard'].includes(t.landuse)||['wood','scrub','grassland'].includes(t.natural)||['park','garden','pitch'].includes(t.leisure)?'녹지':null;const coords=[];const collect=c=>{if(typeof c[0]==='number')coords.push(xy(c));else for(const part of c)collect(part);};if(g.coordinates)collect(g.coordinates);if(coords.length){let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;for(const p of coords){xmin=Math.min(xmin,p[0]);xmax=Math.max(xmax,p[0]);ymin=Math.min(ymin,p[1]);ymax=Math.max(ymax,p[1]);}const anchor=g.type==='LineString'?coords[Math.floor(coords.length/2)]:[(xmin+xmax)/2,(ymin+ymax)/2];if(xmax>=-w/2&&xmin<=w/2&&ymax>=-h/2&&ymin<=h/2)gisFeatures.push({id:f.id,category:cat||'기타 GIS',properties:{...t},point:anchor,...(!cat?{geometry:{type:g.type,coordinates:(function project(c){return typeof c[0]==='number'?xy(c):c.map(project);})(g.coordinates)}}:{})});}if(!cat)continue;
 try{let polys=[];if(g.type==='Polygon')polys=[g.coordinates.map(r=>r.map(xy))];else if(g.type==='MultiPolygon')polys=g.coordinates.map(p=>p.map(r=>r.map(xy)));else if(['LineString','MultiLineString'].includes(g.type)&&cat!=='건물'&&cat!=='녹지'){let width=parseFloat(t.width);if(String(t.width).includes('ft'))width*=.3048;if(!(width>0&&width<200)){estimated++;width=cat==='철도'?3:cat==='하천'?4:parseFloat(t.lanes)>0?parseFloat(t.lanes)*3:({motorway:14,trunk:12,primary:10,secondary:9,tertiary:7,residential:6,living_street:4,service:3,footway:1.5,path:1.5,steps:1.5,cycleway:2,pedestrian:4,track:3}[t.highway]||roadWidth);}for(const line of g.type==='LineString'?[g.coordinates]:g.coordinates)polys.push(...bufferLine(line.map(xy),width,[-w/2,-h/2,w/2,h/2]));}if(!polys.length)continue;const clipped=pc.intersection(polys,rect);if(!clipped.length)continue;
@@ -73,7 +73,17 @@ report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
 if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;}
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],covers['인도'],builtArea);}
-if(stepped){let occupied=[];for(const name of ['횡단보도','인도','도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
+// Offset the original sidewalk perimeter before selection/terrain cuts.
+// A 360mm symmetric stroke clipped INSIDE the footprint yields a 180mm curb.
+if(d.curb&&covers['인도'].length){
+ const boundary=importedRoads?.sidewalkBoundaries||covers['인도'];
+ const edges=unionAll(boundary.flatMap(poly=>poly.map(r=>bufferLine(r,.36,[-w/2,-h/2,w/2,h/2],48))));
+ covers['경계석']=terrainPolygons(pc.intersection(covers['인도'],edges));
+ covers['인도']=pc.difference(covers['인도'],covers['경계석']);
+ counts['경계석']=covers['경계석'].length;
+}
+if(importedRoads)delete importedRoads.sidewalkBoundaries;
+if(stepped){let occupied=[];for(const name of ['경계석','횡단보도','인도','도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
 const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const sidewalkVolume=!!d.sidewalkVolume&&covers['인도'].length>0,sidewalkDepth=.2;
@@ -106,7 +116,7 @@ function makeSteps(){
    for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level),bt=point(...b,z0+level),ab=point(...a,z0-baseDepth),bb=point(...b,z0-baseDepth);tri('대지',at,ab,bb);tri('대지',at,bb,bt);}
   }
   for(const [name,polys] of Object.entries(layerCovers))for(const poly of polys){
-   const bottom=sidewalkVolume&&name==='인도'?z0+level-sidewalkDepth:z0-baseDepth;
+   const bottom=(name==='경계석'||sidewalkVolume&&name==='인도')?z0+level-sidewalkDepth:z0-baseDepth;
    face(name,poly,()=>z0+level+coverOffset(name));if(name==='철도')continue;face(name,poly,()=>bottom);
    for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i],at=point(...a,z0+level+coverOffset(name)),bt=point(...b,z0+level+coverOffset(name)),ab=point(...a,bottom),bb=point(...b,bottom);tri(name,at,ab,bb);tri(name,at,bb,bt);}
   }
@@ -136,7 +146,7 @@ if(d.parapet){
   }
  }counts['파라펫']=cad.parapets.length;
 }
-if(!stepped&&sidewalkVolume&&groups['인도']){const slab=surfaceVolume(groups['인도'].positions.finish(),sidewalkDepth);groups['인도'].positions=slab.positions;cad.sidewalkVolumeParts=slab.parts;}
+for(const name of ['인도','경계석'])if(!stepped&&groups[name]&&(name==='경계석'||sidewalkVolume)){const slab=surfaceVolume(groups[name].positions.finish(),sidewalkDepth);groups[name].positions=slab.positions;cad[name==='경계석'?'curbVolumeParts':'sidewalkVolumeParts']=slab.parts;}
 const contours=group('등고선');const unique=new Map();for(let i=0;i<contours.positions.length;i+=6){const a=contours.positions.slice(i,i+3),b=contours.positions.slice(i+3,i+6),ka=a.map(v=>Math.round(v*10000)).join(','),kb=b.map(v=>Math.round(v*10000)).join(',');if(ka!==kb)unique.set(ka<kb?ka+'|'+kb:kb+'|'+ka,[...a,...b]);}contours.positions=[...unique.values()].flat();
 counts['대지']=stepped?cad.terrain.bands.length:1;counts['등고선']=Math.floor(group('등고선').positions.length/6);return {groups:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,{...v,positions:v.positions instanceof MeshPositions?v.positions.finish():new Float32Array(v.positions)}])),counts,estimated,skipped,z0,cad,importedRoads,importedBuildings};}
 onmessage=e=>{activeRequestId=e.data.id;try{if(!e.data.osm.preparedGeo&&typeof osmtogeojson==='undefined')importScripts('vendor/osmtogeojson.js');const result=makeModel(e.data);postMessage({id:e.data.id,result},Object.values(result.groups).map(g=>g.positions.buffer));}catch(error){postMessage({id:e.data.id,error:String(error.message||error)});}};

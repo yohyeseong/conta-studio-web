@@ -20,7 +20,7 @@ function buildRhinoFile(rhino,items,scale,cad){
     if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
-    else if(['도로','인도','횡단보도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
+    else if(['도로','인도','경계석','횡단보도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
     else if(item.lines){
      let chain=[];const same=(a,b)=>a&&b&&a.every((v,i)=>v===b[i]);
      const flush=()=>{if(chain.length>1){const curve=new rhino.PolylineCurve(chain);try{if(!curve.isValid)throw Error('원본 선 검증에 실패했습니다.');doc.objects().addCurve(curve,attr);expected++;}finally{curve.delete();}}chain=[];};
