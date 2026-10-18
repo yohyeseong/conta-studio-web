@@ -1,0 +1,42 @@
+{
+  "source": "350c375aebf0a865c54aeb9e0adc37d1eb0d17f7",
+  "solidVersion": 1,
+  "files": {
+    "solid-4-1000.3dm": {
+      "bytes": 38366,
+      "sha256": "20aafb566532834266bf2b991d0c10d8c5587bdf56ec9dd27f9ad029a1927283"
+    },
+    "solid-7-1000.3dm": {
+      "bytes": 98766,
+      "sha256": "5a4255a38dc85eaf3ce1806b421411a3986f0c2becac8ba1bb1ac4cdd266a2f9"
+    },
+    "LICENSE-rhino3dm.txt": {
+      "bytes": 1083,
+      "sha256": "f57a154acc534312b7e7b2bff29748bcef5e1202713b891759a027f7c015f0bd"
+    },
+    "trimmed-smoke.3dm": {
+      "bytes": 14831,
+      "sha256": "9581098ddc05c99b358e3a336b2437bf9c0becdc95407cb61dc0ee9325e34974"
+    },
+    "solid-7-1.3dm": {
+      "bytes": 98766,
+      "sha256": "237e75f1420596bbee1c052e0dffbab85fcaf55ac8cf06831a3b41a3b271003e"
+    },
+    "LICENSE-opennurbs.txt": {
+      "bytes": 2191,
+      "sha256": "de437cd429817f50999710543b9d3e743b17b35b4c96842393b9d39f7bb9b3bd"
+    },
+    "terrain-cad.js": {
+      "bytes": 127672,
+      "sha256": "cd65f603f63849b95e0052db62508b327453eeb3541ed61ea1e0e927c056b620"
+    },
+    "terrain-cad.wasm": {
+      "bytes": 2665268,
+      "sha256": "004d85fe717356eccb4d0dc389103545491fa71f15adb34627425afa8aa0bc64"
+    },
+    "solid-4-1.3dm": {
+      "bytes": 38366,
+      "sha256": "0486a4276b8420a237b9f1a2ac009a647edc82e7b4532ea52408c4125b832ae8"
+    }
+  }
+}
