@@ -2,6 +2,7 @@
 (function(root){
 function inside(p,ring){let yes=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++)if((ring[i][1]>p[1])!==(ring[j][1]>p[1])&&p[0]<(ring[j][0]-ring[i][0])*(p[1]-ring[i][1])/(ring[j][1]-ring[i][1])+ring[i][0])yes=!yes;return yes;}
 const contains=(polys,p)=>polys.some(poly=>inside(p,poly[0])&&!poly.slice(1).some(r=>inside(p,r)));
+root.riverBankCovered=function(a,b,c,d){const distance=p=>{const x=d[0]-c[0],y=d[1]-c[1],t=Math.max(0,Math.min(1,((p[0]-c[0])*x+(p[1]-c[1])*y)/(x*x+y*y)||0));return Math.hypot(p[0]-c[0]-t*x,p[1]-c[1]-t*y);};return distance(a)<.002&&distance(b)<.002;};
 root.riverBankOffset=function(a,b,water,covers,terrain){
  const x=b[0]-a[0],y=b[1]-a[1],length=Math.hypot(x,y);if(length<1e-9)return 0;
  for(const sign of [-1,1]){const probe=[(a[0]+b[0])/2-sign*y/length*.002,(a[1]+b[1])/2+sign*x/length*.002];if(contains(water,probe))continue;

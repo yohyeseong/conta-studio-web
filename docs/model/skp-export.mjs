@@ -37,10 +37,11 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
     builder.addGroup(group=>{const mesh=connectedMesh(volumeParts[i],point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces){if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:item.name+' '+(i+1),material,layer});groups++;
    }
   }else if(item.name==='하천'&&cad.riverEstimate?.enabled){for(const reach of cad.riverEstimate.surfaces)prism({poly:reach.poly,bottom:cad.terrain.base,roof:reach.level},item,'하천 · 높이 추정');
+   if(cad.riverEstimate.regularPolygons?.length){if(cad.terrain.bands){for(const band of cad.terrain.bands)for(const poly of band.covers['하천']||[])prism({poly,bottom:cad.terrain.base,roof:band.level-(cad.terrain.lowerStep?cad.terrain.interval:0)},item,'하천');}else if(cad.riverRegularPositions?.length){builder.addGroup(group=>{const mesh=connectedMesh(cad.riverRegularPositions,point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces)if(hasSurface(ring)){group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:'하천',material,layer});groups++;}}
   }else if(item.name==='건물'||item.name==='파라펫'){
    const shapes=item.name==='건물'?cad.buildings:cad.parapets;
    for(let i=0;i<shapes.length;i++)prism(shapes[i],item,item.name+' '+(i+1));
-  }else if(cad.terrain.bands&&!item.lines){
+  }else if(cad.terrain.bands&&!item.lines&&item.name!=='원본 석축'){
    let count=0;for(const band of cad.terrain.bands){
     const polys=item.name==='대지'?band.polygons:band.covers[item.name]||[];
     const offset=cad.terrain.sidewalkVolume&&['도로','횡단보도'].includes(item.name)?-cad.terrain.sidewalkDepth:-(cad.terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(item.name)?cad.terrain.interval:0);

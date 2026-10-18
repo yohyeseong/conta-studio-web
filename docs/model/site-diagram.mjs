@@ -8,7 +8,7 @@ export function siteDiagram(cad,items,options={}){
  const number=v=>Number(v.toFixed(3)),xy=p=>[number(left+(p[0]+w/2)*scale),number(top+(h/2-p[1])*scale)];
  const path=poly=>poly.map(r=>r.map((p,i)=>(i?'L':'M')+xy(p).join(' ')).join(' ')+'Z').join(' ');
  const parts=[],legend=[],byName=new Map(items.map(i=>[i.name,i]));
- for(const name of ['대지','바다','하천','녹지','도로','인도','경계석','횡단보도','철도','등고선','건물','파라펫','캐드']){
+ for(const name of ['대지','바다','하천','녹지','원본 석축','도로','인도','경계석','횡단보도','철도','등고선','건물','파라펫','캐드']){
   const item=byName.get(name);if(!item)continue;
   const color=/^#[\da-f]{6}$/i.test(item.color)?item.color:'#aaaaaa';
   let polys=name==='대지'?cad.terrain.polygons:name==='건물'?cad.buildings.map(b=>b.poly):name==='파라펫'?cad.parapets.map(b=>b.poly):cad.covers[name]||[];

@@ -84,6 +84,7 @@ function cadRiverBanks(r,terrain,estimate,factor,add){
    const edge=top.edges().get(i);let upper,lower,wall,brep,flatten;
    try{
     const a=edge.pointAtStart.map(v=>v/factor),b=edge.pointAtEnd.map(v=>v/factor);
+    if((estimate.sourceBanks||[]).some(p=>p.waterA&&riverBankCovered(a,b,p.waterA,p.waterB)))continue;
     if([0,1].some(k=>Math.abs(Math.abs(a[k])-(k?terrain.h:terrain.w)/2)<1e-6&&Math.abs(a[k]-b[k])<1e-6))continue;
     upper=edge.toNurbsCurve();const offset=riverBankOffset(a,b,water,estimate.bankCovers,terrain);if(offset)upper.translate([0,0,offset*factor]);
     const domain=upper.domain,difference=Array.from({length:9},(_,j)=>Math.abs(upper.pointAt(domain[0]+(domain[1]-domain[0])*j/8)[2]-reach.level*factor));
@@ -92,5 +93,14 @@ function cadRiverBanks(r,terrain,estimate,factor,add){
     wall=r.NurbsSurface.createRuledSurface(upper,lower);brep=r.Brep.createFromSurface(wall);if(!brep||!brep.isValid)throw Error('하천 연결 NURBS 면 검증 실패');add(brep,'하천과 대지 연결면');
    }finally{if(brep)brep.delete();if(wall)wall.delete();if(flatten)flatten.delete();if(lower)lower.delete();if(upper)upper.delete();edge.delete();}
   }}finally{top.delete();}
+ }
+}
+// Native ruled surfaces between the two original source traces.
+function cadSourceBanks(r,terrain,panels,factor,add){
+ const onSegment=(p,a,b)=>{const x=b[0]-a[0],y=b[1]-a[1],t=((p[0]-a[0])*x+(p[1]-a[1])*y)/(x*x+y*y);return t>=-1e-6&&t<=1+1e-6&&Math.abs((p[0]-a[0])*y-(p[1]-a[1])*x)/Math.hypot(x,y)<1e-5;};
+ function mapCurve(curve,a,b,c,d,zOffset,flatZ){const vx=(b[0]-a[0])*factor,vy=(b[1]-a[1])*factor,length2=vx*vx+vy*vy,t=r.Transform.identity(),dx=(d[0]-c[0])*factor,dy=(d[1]-c[1])*factor;t.m00=dx*vx/length2;t.m01=dx*vy/length2;t.m03=c[0]*factor-t.m00*a[0]*factor-t.m01*a[1]*factor;t.m10=dy*vx/length2;t.m11=dy*vy/length2;t.m13=c[1]*factor-t.m10*a[0]*factor-t.m11*a[1]*factor;if(flatZ!==undefined){t.m22=0;t.m23=flatZ*factor;}else t.m23=zOffset*factor;try{if(!curve.transform(t))throw Error('원본 석축 좌표 처리 실패');}finally{t.delete();}}
+ const emit=(upper,lower,name)=>{let wall,brep;try{wall=r.NurbsSurface.createRuledSurface(upper,lower);brep=r.Brep.createFromSurface(wall);if(!brep||!brep.isValid)throw Error('원본 석축 NURBS 면 검증 실패');add(brep,name);}finally{if(brep)brep.delete();if(wall)wall.delete();}};
+ for(const p of panels){const points=Number.isFinite(p.topLevel)?terrain.points.map(v=>[v[0],v[1],p.topLevel]):terrain.points,patch=r.createTerrainBrep({...terrain,points,polygons:[p.poly],factor});if(!patch||!patch.isValid){if(patch)patch.delete();throw Error('원본 석축 경계 검증 실패');}
+  try{for(let i=0;i<patch.edges().count;i++){const edge=patch.edges().get(i);let top,low,water;try{const a=edge.pointAtStart.map(v=>v/factor),b=edge.pointAtEnd.map(v=>v/factor);if(!onSegment(a,p.a,p.b)||!onSegment(b,p.a,p.b))continue;top=edge.toNurbsCurve();low=edge.toNurbsCurve();mapCurve(low,p.a,p.b,p.c,p.d,-p.height);emit(top,low,'원본 석축 · 높이 '+p.height+'m');if(p.waterA&&Number.isFinite(p.waterLevel)){water=edge.toNurbsCurve();mapCurve(water,p.a,p.b,p.waterA,p.waterB,0,p.waterLevel);emit(low,water,'석축 하단과 하천 연결 · 추정 수위');}}finally{if(water)water.delete();if(low)low.delete();if(top)top.delete();edge.delete();}}}finally{patch.delete();}
  }
 }

@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('detail-mask.js?v=riverbank1','river-banks.js?v=riverbank1','river-elevation.js?v=river1','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
+importScripts('source-terrain.js?v=source1','detail-mask.js?v=riverbank1','river-banks.js?v=source1','river-elevation.js?v=source1','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -12,20 +12,25 @@ class MeshPositions{
  push(...values){for(const value of values){if(!this.block||this.used===this.block.length){this.block=new Float32Array(65536);this.blocks.push(this.block);this.used=0;}this.block[this.used++]=value;this.length++;}}
  finish(){const out=new Float32Array(this.length);let offset=0;for(let i=0;i<this.blocks.length;i++){const b=i===this.blocks.length-1?this.blocks[i].subarray(0,this.used):this.blocks[i];out.set(b,offset);offset+=b.length;}this.blocks=[];this.block=null;return out;}
 }
-function makeModel(d){const {w,h,n,heights,center,floor,roadWidth,interval}=d;const dx=w/n,dy=h/n,min=Math.min(...heights),z0=min,groups={},counts={};let baseDepth=Math.max(5,d.lowerStep?interval+1:5);
+function makeModel(d){const {w,h,n,center,floor,roadWidth,interval}=d,dx=w/n,dy=h/n;
+const xy=c=>[(c[0]-center[0])*111319.490793*Math.cos(center[1]*Math.PI/180),(c[1]-center[1])*111319.490793];
+const sourceTerrain=(!d.bounds||d.localRoads&&MilitaryPolicy.overlaps(d.localRoads.bbox,d.bounds))?sourceElevationField(d.localRoads,xy,demZ):null,heights=sourceTerrain?Array.from({length:(n+1)*(n+1)},(_,id)=>sourceTerrain.height(-w/2+(id%(n+1))*dx,-h/2+Math.floor(id/(n+1))*dy)):d.heights;
+const min=Math.min(...heights,...(sourceTerrain?[sourceTerrain.minHeight]:[])),z0=min,groups={},counts={};let baseDepth=Math.max(5,d.lowerStep?interval+1:5);
 function group(k){return groups[k]||(groups[k]={positions:k==='등고선'?[]:new MeshPositions(),lines:false});}function tri(k,a,b,c){group(k).positions.push(...a,...b,...c);}function point(x,y,z){return [x,y,z-z0];}
-function rawZ(x,y){let u=Math.max(0,Math.min(n-1e-9,(x+w/2)/dx)),v=Math.max(0,Math.min(n-1e-9,(y+h/2)/dy));const i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,at=(ii,jj)=>heights[jj*(n+1)+ii];return b<=a?at(i,j)*(1-a)+at(i+1,j)*(a-b)+at(i+1,j+1)*b:at(i,j)*(1-b)+at(i+1,j+1)*a+at(i,j+1)*(b-a);}
+function demZ(x,y){let u=Math.max(0,Math.min(n-1e-9,(x+w/2)/dx)),v=Math.max(0,Math.min(n-1e-9,(y+h/2)/dy));const i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,at=(ii,jj)=>d.heights[jj*(n+1)+ii];return b<=a?at(i,j)*(1-a)+at(i+1,j)*(a-b)+at(i+1,j+1)*b:at(i,j)*(1-b)+at(i+1,j+1)*a+at(i,j+1)*(b-a);}
+function rawZ(x,y){return sourceTerrain?sourceTerrain.height(x,y):demZ(x,y);}
 const stepped=d.terrainMode==='stepped';if(!Number.isFinite(interval)||interval<.5||interval>100)throw Error('한 단 높이는 0.5–100m로 입력하세요.');
 const surface=terrainSurface(w,h,n,rawZ,z0),heightCache=new Map();const z=(x,y)=>{const key=x+","+y;if(heightCache.has(key))return heightCache.get(key);const raw=stepped?surface.height(x,y):meshHeight(x,y),value=stepped?Math.floor((raw-z0+1e-8)/interval)*interval+z0:raw;heightCache.set(key,value);return value;};
 // All smooth surface layers use the same terrain triangles. Sampling a curved
 // surface independently at each polygon's extra vertices creates mismatched seams.
-const meshHeights=stepped?null:Array.from({length:(n+1)*(n+1)},(_,id)=>surface.height(-w/2+(id%(n+1))*dx,-h/2+Math.floor(id/(n+1))*dy));
+const meshHeights=Array.from({length:(n+1)*(n+1)},(_,id)=>surface.height(-w/2+(id%(n+1))*dx,-h/2+Math.floor(id/(n+1))*dy));
 function meshHeight(x,y){const u=Math.max(0,Math.min(n-1e-9,(x+w/2)/dx)),v=Math.max(0,Math.min(n-1e-9,(y+h/2)/dy)),i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,at=(ii,jj)=>meshHeights[jj*(n+1)+ii];return b<=a?at(i,j)*(1-a)+at(i+1,j)*(a-b)+at(i+1,j+1)*b:at(i,j)*(1-b)+at(i+1,j+1)*a+at(i,j+1)*(b-a);}
-const xy=c=>[(c[0]-center[0])*111319.490793*Math.cos(center[1]*Math.PI/180),(c[1]-center[1])*111319.490793];
+
 const rect=[[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]]];
 const detailBoxes=(MilitaryPolicy.detailExclusionZones||[]).filter(zone=>!d.bounds||MilitaryPolicy.overlaps(zone.bbox,d.bounds)).map(zone=>{const a=xy(zone.bbox.slice(0,2)),b=xy(zone.bbox.slice(2));return [...a,...b];}),detailMask=detailBoxes.map(([x,y,X,Y])=>[[[x,y],[X,y],[X,Y],[x,Y],[x,y]]]);
 const gisFeatures=[];const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[],'인도':[],'횡단보도':[],'경계석':[]},buildings=[];let skipped=0,estimated=0;
 const geo=(d.osm.preparedGeo?MilitaryPolicy.assertPrepared(d.osm,d.bounds):MilitaryPolicy.assertSelection(d.osm,d.bounds||[-180,-90,180,90])).geo;
+const sourcePairs=sourceBankPairs(d.localRoads,xy);
 let processed=0;for(const f of [...geo.features].sort((a,b)=>String(a.id).localeCompare(String(b.id)))){if(++processed%1000===0)report({progress:60+Math.round(processed/geo.features.length*4),message:'주변 요소 처리 중 · '+processed.toLocaleString()+' / '+geo.features.length.toLocaleString()});const t=f.properties||{},g=f.geometry;if(!g)continue;const cat=(t.building&&t.building!=='no')||(t['building:part']&&t['building:part']!=='no')?'건물':t.highway||t['area:highway']?'도로':t.waterway||t.natural==='water'?'하천':t.railway?'철도':['grass','forest','meadow','orchard'].includes(t.landuse)||['wood','scrub','grassland'].includes(t.natural)||['park','garden','pitch'].includes(t.leisure)?'녹지':null;const coords=[];const collect=c=>{if(typeof c[0]==='number')coords.push(xy(c));else for(const part of c)collect(part);};if(g.coordinates)collect(g.coordinates);if(coords.length){let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;for(const p of coords){xmin=Math.min(xmin,p[0]);xmax=Math.max(xmax,p[0]);ymin=Math.min(ymin,p[1]);ymax=Math.max(ymax,p[1]);}const anchor=g.type==='LineString'?coords[Math.floor(coords.length/2)]:[(xmin+xmax)/2,(ymin+ymax)/2];if(xmax>=-w/2&&xmin<=w/2&&ymax>=-h/2&&ymin<=h/2)gisFeatures.push({id:f.id,category:cat||'기타 GIS',properties:{...t},point:anchor,...(!cat?{geometry:{type:g.type,coordinates:(function project(c){return typeof c[0]==='number'?xy(c):c.map(project);})(g.coordinates)}}:{})});}if(!cat)continue;
 try{let polys=[];if(g.type==='Polygon')polys=[g.coordinates.map(r=>r.map(xy))];else if(g.type==='MultiPolygon')polys=g.coordinates.map(p=>p.map(r=>r.map(xy)));else if(['LineString','MultiLineString'].includes(g.type)&&cat!=='건물'&&cat!=='녹지'){let width=parseFloat(t.width);if(String(t.width).includes('ft'))width*=.3048;if(!(width>0&&width<200)){estimated++;width=cat==='철도'?3:cat==='하천'?4:parseFloat(t.lanes)>0?parseFloat(t.lanes)*3:({motorway:14,trunk:12,primary:10,secondary:9,tertiary:7,residential:6,living_street:4,service:3,footway:1.5,path:1.5,steps:1.5,cycleway:2,pedestrian:4,track:3}[t.highway]||roadWidth);}for(const line of g.type==='LineString'?[g.coordinates]:g.coordinates)polys.push(...bufferLine(line.map(xy),width,[-w/2,-h/2,w/2,h/2]));}if(!polys.length)continue;const clipped=pc.intersection(polys,rect);if(!clipped.length)continue;
 if(cat==='건물'){let height=parseFloat(t.height);if(String(t.height).includes('ft'))height*=.3048;const heightEstimated=!Number.isFinite(height)||height<=0;if(heightEstimated){height=(parseFloat(t['building:levels'])||1)*floor;estimated++;}for(const poly of clipped)buildings.push({poly,height,properties:{...t},heightEstimated,usage:ContaBuildingUse.classify(t)});}else covers[cat].push(clipped);counts[cat]=(counts[cat]||0)+clipped.length;
@@ -65,12 +70,16 @@ for(const f of d.localRoads?.sourceLines||[]){
   }
   if(!valid||hi<=lo||Math.hypot(vx,vy)<1e-9)continue;
   const steps=Math.max(1,Math.ceil(Math.hypot(vx,vy)*(hi-lo)/Math.max(1,Math.min(dx,dy)/2)));
-  for(let j=0;j<steps;j++){const sample=t=>{const x=a[0]+vx*t,y=a[1]+vy*t;return point(x,y,z(x,y)+.08);};for(const [u,v] of detailLineParts(sample(lo+(hi-lo)*j/steps),sample(lo+(hi-lo)*(j+1)/steps),detailBoxes))g.positions.push(...u,...v);}
+  const contourValue=f.properties.source_layer?.match(/f001/i)?Number(f.properties['등고수치']??f.properties.cont):NaN;
+  const related=sourcePairs.filter(p=>p.upperId.startsWith(f.id+'/')||p.lowerId.startsWith(f.id+'/'));
+  const bankLevel=(x,y)=>{let best=null;for(const p of related){if(p.upperId.startsWith(f.id+'/'))return z(x,y);for(let i=1;i<p.nodes.length;i++){const a=p.nodes[i-1],b=p.nodes[i],vx=b.lower[0]-a.lower[0],vy=b.lower[1]-a.lower[1],t=Math.max(0,Math.min(1,((x-a.lower[0])*vx+(y-a.lower[1])*vy)/(vx*vx+vy*vy)||0)),distance=Math.hypot(x-a.lower[0]-vx*t,y-a.lower[1]-vy*t),upper=a.upper.map((v,j)=>v+(b.upper[j]-v)*t);if(!best||distance<best.distance)best={distance,level:z(...upper)-p.height};}}return best&&best.distance<.05?best.level:null;};
+
+  for(let j=0;j<steps;j++){const sample=t=>{const x=a[0]+vx*t,y=a[1]+vy*t;const originalZ=Number.isFinite(line[i-1][2])&&Number.isFinite(line[i][2])?line[i-1][2]+(line[i][2]-line[i-1][2])*t:null,sourceBankLevel=bankLevel(x,y);return point(x,y,Number.isFinite(contourValue)?contourValue:originalZ??sourceBankLevel??(z(x,y)+.08));};for(const [u,v] of detailLineParts(sample(lo+(hi-lo)*j/steps),sample(lo+(hi-lo)*(j+1)/steps),detailBoxes))g.positions.push(...u,...v);}
   counts[name]=(counts[name]||0)+1;
  }
 }
 if(d.coast) covers['바다']=pc.difference(rect,d.coast.map(r=>[r.map(xy)]));
-if(d.riverEstimate){
+if(d.riverEstimate||d.localRoads?.waterFeatures?.length){
  const water=d.localRoads?.waterFeatures||[],source=water.some(f=>f.properties.water_code==='E003')?water.filter(f=>f.properties.water_code==='E003'):water;
  if(!source.length)throw Error('하천 면과 등고선·표고점이 있는 ZIP을 먼저 불러오세요.');
  const project=c=>typeof c[0]==='number'?xy(c):c.map(project),[west,south,east,north]=d.localRoads.bbox,coverage=[[[[west,south],[east,south],[east,north],[west,north],[west,south]].map(xy)]];
@@ -91,6 +100,18 @@ if(detailMask.length){
 }
 
 if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;counts['횡단보도']=covers['횡단보도'].length;}
+const sourceBanks=[];
+function segmentBounds(a,b){let lo=0,hi=1;const vx=b[0]-a[0],vy=b[1]-a[1];for(const [p,q] of [[-vx,a[0]+w/2],[vx,w/2-a[0]],[-vy,a[1]+h/2],[vy,h/2-a[1]]]){if(Math.abs(p)<1e-12){if(q<0)return null;continue;}const t=q/p;if(p<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}return hi-lo>1e-8?[lo,hi]:null;}
+const waterForBanks=covers['하천'],waterEdges=waterForBanks.flatMap(p=>p.flatMap(r=>r.slice(1).map((b,i)=>[r[i],b]))),nearWater=p=>{let out={distance:Infinity};for(const [a,b] of waterEdges){const vx=b[0]-a[0],vy=b[1]-a[1],t=Math.max(0,Math.min(1,((p[0]-a[0])*vx+(p[1]-a[1])*vy)/(vx*vx+vy*vy)||0)),q=[a[0]+vx*t,a[1]+vy*t],distance=Math.hypot(p[0]-q[0],p[1]-q[1]);if(distance<out.distance)out={point:q,distance};}return out;};
+for(const pair of sourcePairs)for(let i=1;i<pair.nodes.length;i++){
+ const u=pair.nodes[i-1],v=pair.nodes[i],ub=segmentBounds(u.upper,v.upper),lb=segmentBounds(u.lower,v.lower);if(!ub||!lb)continue;const lo=Math.max(ub[0],lb[0]),hi=Math.min(ub[1],lb[1]);if(hi-lo<1e-8)continue;const at=(a,b,t)=>a.map((x,k)=>x+(b[k]-x)*t),a=at(u.upper,v.upper,lo),b=at(u.upper,v.upper,hi),c=at(u.lower,v.lower,lo),e=at(u.lower,v.lower,hi),poly=[[[...a],[...b],[...e],[...c],[...a]]];
+ if(!terrainPolygons([poly]).length||detailMask.length&&pc.intersection([poly],detailMask).length)continue;
+ const panel={a,b,c,d:e,poly,height:pair.height,upperId:pair.upperId,lowerId:pair.lowerId,sourceProperties:pair.properties,absoluteElevationEstimated:true,relativeHeightFromSource:true};if(stepped)panel.topLevel=Math.floor((meshHeight((a[0]+b[0])/2,(a[1]+b[1])/2)-z0)/interval)*interval;
+ const wa=nearWater(c),wb=nearWater(e);if(wa.distance<3&&wb.distance<3&&Math.hypot(wa.point[0]-wb.point[0],wa.point[1]-wb.point[1])>1e-4){const connector=[[[...c],[...e],wb.point,wa.point,[...c]]];if(terrainPolygons([connector]).length&&(!detailMask.length||!pc.intersection([connector],detailMask).length)){panel.waterA=wa.point;panel.waterB=wb.point;panel.connectorPoly=connector;}}
+ sourceBanks.push(panel);
+}
+const sourceBankMask=unionAll(sourceBanks.flatMap(p=>[[p.poly],...(p.connectorPoly?[[p.connectorPoly]]:[])]));
+if(sourceBankMask.length)for(const name in covers)covers[name]=pc.difference(covers[name],sourceBankMask);
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],covers['인도'],builtArea);}
 // Offset the original sidewalk perimeter before selection/terrain cuts.
 // A 360mm symmetric stroke clipped INSIDE the footprint yields a 180mm curb.
@@ -104,12 +125,17 @@ if(d.curb&&covers['인도'].length){
 if(importedRoads)delete importedRoads.sidewalkBoundaries;
 if(stepped){let occupied=[];for(const name of ['경계석','횡단보도','인도','도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
-const riverEstimate=d.riverEstimate&&covers['하천'].length?estimateRiverLevels(terrainPolygons(covers['하천']),d.localRoads,{xy,bankHeight:z,z0,interval,stepped,w,h,n}):null;
+const bankConstraints=sourceBanks.filter(p=>p.waterA).flatMap(p=>[0,.5,1].map(t=>{const upper=p.a.map((v,i)=>v+(p.b[i]-v)*t),lower=p.c.map((v,i)=>v+(p.d[i]-v)*t),height=(stepped?z0+p.topLevel:meshHeight(...upper))-p.height;return {point:lower,height,sourceHeight:p.height};}));
+let riverEstimate=(d.riverEstimate||bankConstraints.length)&&covers['하천'].length?estimateRiverLevels(terrainPolygons(covers['하천']),d.localRoads,{xy,bankHeight:z,z0,interval,stepped,w,h,n,bankConstraints,requested:!!d.riverEstimate}):null;
+if(riverEstimate)for(const panel of sourceBanks)if(panel.waterA){let best=null;const mid=panel.waterA.map((v,i)=>(v+panel.waterB[i])/2);for(const reach of riverEstimate.surfaces)for(const ring of reach.poly)for(const q of ring){const distance=Math.hypot(q[0]-mid[0],q[1]-mid[1]);if(!best||distance<best.distance)best={distance,level:reach.level};}if(best)panel.waterLevel=best.level;}
+
+if(riverEstimate&&!riverEstimate.surfaces.length&&!d.riverEstimate)riverEstimate=null;
 if(riverEstimate){if(!riverEstimate.surfaces.length)throw Error('선택 영역에 추정할 하천 면이 없습니다.');baseDepth=Math.max(baseDepth,...riverEstimate.surfaces.map(s=>-s.level+5));counts['하천']=riverEstimate.surfaces.length;}
-const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
+const mask=unionAll([...Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys),sourceBankMask]),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const sidewalkVolume=!!d.sidewalkVolume&&covers['인도'].length>0,sidewalkDepth=.2;
-const cad={gisFeatures,detailExclusions:detailBoxes,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
-if(riverEstimate){riverEstimate.banksConnected=!stepped;riverEstimate.bankCovers=cad.covers;covers['하천']=[];}
+const cad={gisFeatures,sourceTerrain:sourceTerrain?{contours:sourceTerrain.contours,spots:sourceTerrain.spots,method:sourceTerrain.method,estimatedBetweenReferences:true}:null,sourceBanks,detailExclusions:detailBoxes,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
+cad.covers['원본 석축']=sourceBankMask;
+if(riverEstimate){riverEstimate.banksConnected=!stepped;riverEstimate.bankCovers=cad.covers;riverEstimate.sourceBanks=sourceBanks;covers['하천']=riverEstimate.regularPolygons||[];}
 if(stepped)cad.terrain.bands=makeSteps();
 function coverOffset(name){if(sidewalkVolume&&['도로','횡단보도'].includes(name))return -sidewalkDepth;return -(d.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?interval:0);}
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
@@ -158,16 +184,24 @@ if(!stepped)for(let j=0;j<n;j++){for(let i=0;i<n;i++){const x=-w/2+i*dx,y=-h/2+j
 // One continuous perimeter down to a common base, independent of point-in-area tests.
 const ring=[];for(let i=0;i<n;i++)ring.push([-w/2+i*dx,-h/2]);for(let j=0;j<n;j++)ring.push([w/2,-h/2+j*dy]);for(let i=n;i>0;i--)ring.push([-w/2+i*dx,h/2]);for(let j=n;j>0;j--)ring.push([-w/2,-h/2+j*dy]);
 if(!stepped)for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],aa=point(...a,min-baseDepth),bb=point(...b,min-baseDepth),at=point(...a,z(...a)),bt=point(...b,z(...b));tri('대지',at,aa,bb);tri('대지',at,bb,bt);}if(!stepped)face('대지',rect,()=>min-baseDepth);
+if(riverEstimate&&!stepped&&riverEstimate.regularPolygons?.length&&groups['하천']){const normal=groups['하천'].positions.finish();cad.riverRegularPositions=normal;groups['하천'].positions=new MeshPositions();for(let i=0;i<normal.length;i+=4096)groups['하천'].positions.push(...normal.subarray(i,i+4096));}
 if(riverEstimate)for(const {poly,level} of riverEstimate.surfaces){
  const top=z0+level,bottom=z0-baseDepth;face('하천',poly,()=>top);face('하천',poly,()=>bottom);
  for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i];tri('하천',point(...a,top),point(...a,bottom),point(...b,bottom));tri('하천',point(...a,top),point(...b,bottom),point(...b,top));}
 }
+for(const panel of sourceBanks){
+ const {a,b,c,d:lowB,height}=panel,vx=b[0]-a[0],vy=b[1]-a[1],length2=vx*vx+vy*vy;if(length2<1e-8)continue;
+ const samples=riverBankSegments(a,b,w,h,n);for(const [u,v] of samples){const t=p=>((p[0]-a[0])*vx+(p[1]-a[1])*vy)/length2,lower=p=>{const s=t(p);return c.map((x,i)=>x+(lowB[i]-x)*s);},up=p=>stepped?z0+panel.topLevel:meshHeight(...p),U=point(...u,up(u)),V=point(...v,up(v)),A=point(...lower(u),up(u)-height),B=point(...lower(v),up(v)-height);tri('원본 석축',U,V,B);tri('원본 석축',U,B,A);
+  if(panel.waterA&&Number.isFinite(panel.waterLevel)){const edge=p=>{const s=t(p);return panel.waterA.map((x,i)=>x+(panel.waterB[i]-x)*s);},C=point(...edge(u),z0+panel.waterLevel),D=point(...edge(v),z0+panel.waterLevel);tri('원본 석축',A,B,D);tri('원본 석축',A,D,C);}
+ }
+}counts['원본 석축']=new Set(sourceBanks.map(p=>p.upperId+'|'+p.lowerId)).size;
 if(riverEstimate&&!stepped){
  const water=cad.covers['하천'];let bankFaces=0;
  for(const {poly,level} of riverEstimate.surfaces)for(const ring of poly)for(let i=1;i<ring.length;i++){
   const a=ring[i-1],b=ring[i];
   // The selection frame is a model cut, rather than a river bank.
   if([0,1].some(k=>Math.abs(Math.abs(a[k])-(k?h:w)/2)<1e-6&&Math.abs(a[k]-b[k])<1e-6))continue;
+  if(sourceBanks.some(p=>p.waterA&&riverBankCovered(a,b,p.waterA,p.waterB)))continue;
   const offset=riverBankOffset(a,b,water,cad.covers,cad.terrain);
   for(const [u,v] of riverBankSegments(a,b,w,h,n)){
    const at=point(...u,z(...u)+offset),bt=point(...v,z(...v)+offset),ab=point(...u,z0+level),bb=point(...v,z0+level);
