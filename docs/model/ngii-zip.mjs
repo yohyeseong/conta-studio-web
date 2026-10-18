@@ -60,7 +60,9 @@ export function shapeRecords(b,records,project){
  const v=view(b);if(b.length<100||v.getInt32(0)!==9994||v.getInt32(28,true)!==1000||v.getInt32(24)*2!==b.length)fail('SHP 헤더가 올바르지 않습니다.');
  let at=100,index=0;const result=[];
  while(at<b.length){if(at+12>b.length)fail('SHP 레코드가 잘렸습니다.');const length=v.getInt32(at+4)*2,start=at+8,end=start+length;if(length<4||end>b.length)fail('SHP 레코드 길이가 올바르지 않습니다.');const type=v.getInt32(start,true),properties=records[index++];at=end;
-  if(type===0||properties===null)continue;if(![3,5,13,15,23,25].includes(type))fail('도로·인도 SHP는 선 또는 면 형식이어야 합니다.');
+  if(type===0||properties===null)continue;
+  if([1,11,21].includes(type)){if(length<20)fail('SHP 표고점 좌표가 손상됐습니다.');const point=project([v.getFloat64(start+4,true),v.getFloat64(start+12,true)]).slice(0,2);if(!point.every(Number.isFinite)||Math.abs(point[0])>180||Math.abs(point[1])>90)fail('표고점 좌표계를 확인하세요.');result.push({type:'Feature',geometry:{type:'Point',coordinates:point},properties,bbox:[...point,...point]});continue;}
+  if(![3,5,13,15,23,25].includes(type))fail('도로·인도 SHP는 선 또는 면 형식이어야 합니다.');
   if(length<44)fail('SHP 도형이 손상됐습니다.');const parts=v.getInt32(start+36,true),count=v.getInt32(start+40,true),pointAt=start+44+parts*4;if(parts<1||count<2||pointAt+count*16>end)fail('SHP 좌표 개수가 올바르지 않습니다.');
   const starts=Array.from({length:parts},(_,i)=>v.getInt32(start+44+i*4,true));starts.push(count);if(starts[0]!==0||starts.some((n,i)=>n<0||n>count||(i&&n<=starts[i-1])))fail('SHP 부분 도형 정보가 올바르지 않습니다.');
   const rings=[];for(let j=0;j<parts;j++){const ring=[];for(let i=starts[j];i<starts[j+1];i++){const x=v.getFloat64(pointAt+i*16,true),y=v.getFloat64(pointAt+i*16+8,true);if(!Number.isFinite(x)||!Number.isFinite(y))fail('유효하지 않은 SHP 좌표입니다.');ring.push([x,y]);}if([5,15,25].includes(type)){if(ring.length<4||ring[0][0]!==ring.at(-1)[0]||ring[0][1]!==ring.at(-1)[1])fail('닫히지 않은 도로 면이 있습니다.');}rings.push(ring);}
@@ -70,7 +72,7 @@ export function shapeRecords(b,records,project){
  if(index!==records.length)fail('SHP와 DBF의 레코드 수가 다릅니다.');return result;
 }
 export async function importNgiiZip(blob,proj4,onProgress=()=>{},clipping=globalThis.polygonClipping){
- onProgress('ZIP의 원본 선·도로 목록 확인 중',5);const directory=await zipDirectory(blob),layers=[...directory].filter(([name])=>/\.shp$/i.test(name)&&/^(?:n\d[al]_)?[abcdefh]\d{3}/i.test(name.split('/').at(-1))),features=[],buildingFeatures=[],references=[],sourceLines=[],warnings=[],summary=[];let bbox=[Infinity,Infinity,-Infinity,-Infinity];
+ onProgress('ZIP의 원본 선·도로 목록 확인 중',5);const directory=await zipDirectory(blob),layers=[...directory].filter(([name])=>/\.shp$/i.test(name)&&(/^(?:n\d[al]_)?[abcdefh]\d{3}/i.test(name.split('/').at(-1))||/^n\dp_f002/i.test(name.split('/').at(-1)))),features=[],buildingFeatures=[],waterFeatures=[],elevationFeatures=[],references=[],sourceLines=[],warnings=[],summary=[];let bbox=[Infinity,Infinity,-Infinity,-Infinity];
  if(layers.length>200||[...directory].filter(([name])=>layers.some(([key])=>name.slice(0,name.lastIndexOf('.'))===key.slice(0,-4))).reduce((sum,[,e])=>sum+e.length,0)>250*1024**2)fail('도로·인도 자료가 너무 큽니다. 영역을 나누어 불러오세요.');
  if(!layers.length)fail('도로경계 A001·도로중심선 A002·인도 A003 SHP를 찾지 못했습니다.');
  for(let i=0;i<layers.length;i++){
@@ -86,6 +88,9 @@ export async function importNgiiZip(blob,proj4,onProgress=()=>{},clipping=global
    const usage=String(p['용도']||'');
    if(usage)p['building:use']=/주거|주택|아파트/.test(usage)?'residential':/교육|학교/.test(usage)?'school':/의료|병원/.test(usage)?'hospital':/상업|업무|판매|숙박/.test(usage)?'commercial':/공업|산업|공장|창고/.test(usage)?'industrial':/공공|문화|종교/.test(usage)?'public':'other';f.id='ngii/'+stem+'/'+(p.gid||p.ufid||imported+skipped);p.source_layer=entry.name;p.geometry_source='국토정보플랫폼 수치지도';p.ngii_import=true;
    const label=({A001:'도로경계',A002:'도로중심선',A003:'인도경계',A004:'횡단보도',A005:'안전지대',A006:'육교',A007:'교량',A008:'교차로',A009:'입체교차부',A016:'철도경계',A017:'철도중심선',B001:'건물경계',B002:'담장',F001:'원본 등고선',H001:'행정경계'})[code]||code;
+   if(code==='F002'&&f.geometry.type==='Point'){const height=Number(p['수치']??p.elev??p.alti??p.height);if(Number.isFinite(height)&&height>-500&&height<9000)elevationFeatures.push({...f,properties:{...p,elevation:height,elevation_kind:'spot'}});imported++;continue;}
+   if(code==='F001'){const height=Number(p['등고수치']??p.cont);if(Number.isFinite(height)&&height>-500&&height<9000)elevationFeatures.push({...f,properties:{...p,elevation:height,elevation_kind:'contour'}});}
+   if(['E001','E003'].includes(code)&&polygon)waterFeatures.push({...f,properties:{...p,water_code:code}});
    const coordinates=polygon?f.geometry.coordinates.flat():f.geometry.coordinates;
    sourceLines.push({...f,geometry:{type:'MultiLineString',coordinates},properties:{...p,source_line_layer:'원본 선 · '+label}});
    if(code==='B001'&&polygon){
@@ -138,6 +143,6 @@ export async function importNgiiZip(blob,proj4,onProgress=()=>{},clipping=global
  if(ambiguousFaces)warnings.push('인도로 확인되지 않은 닫힌 영역 '+ambiguousFaces+'개는 면을 만들지 않았습니다.');
  if(remainingOpen)warnings.push('닫히지 않은 인도 경계 '+remainingOpen+'구간은 면을 만들지 않았습니다.');
  const crosswalks=sourceLines.filter(f=>f.properties.source_line_layer==='원본 선 · 횡단보도').length;
- onProgress('도로·인도 좌표 변환 완료',100);return {features,roadLayerPresent,buildingFeatures,buildingLayerPresent:summary.some(s=>s.code==='B001'),references,sourceLines,crosswalks,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-b010-1'};
+ onProgress('도로·인도 좌표 변환 완료',100);return {features,roadLayerPresent,waterFeatures,elevationFeatures,buildingFeatures,buildingLayerPresent:summary.some(s=>s.code==='B001'),references,sourceLines,crosswalks,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-river1'};
 }
 export const featuresForBounds=(dataset,bounds,sidewalks=true)=>({...dataset,buildingFeatures:(dataset.buildingFeatures||[]).filter(f=>overlap(f.bbox,bounds)),features:dataset.features.filter(f=>overlap(f.bbox,bounds)&&(sidewalks||f.properties.ngii_kind!=='sidewalk')),references:dataset.references.filter(f=>overlap(f.bbox,bounds)),sourceLines:(dataset.sourceLines||[]).filter(f=>overlap(f.bbox,bounds))});

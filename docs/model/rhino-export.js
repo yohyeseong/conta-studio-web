@@ -19,6 +19,7 @@ function buildRhinoFile(rhino,items,scale,cad){
     const add=(brep,name)=>{attr.name=name;brepIndices.add(expected);if(brep.isSolid)solidIndices.add(expected);doc.objects().addBrep(brep,attr);expected++;};
     if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
+    else if(item.name==='하천'&&cad.riverEstimate?.enabled){for(const reach of cad.riverEstimate.surfaces){const b=cadBuilding(rhino,{poly:reach.poly,bottom:cad.terrain.base,roof:reach.level},factor);try{add(b,'하천 · 표고 자료 기반 높이 추정');}finally{b.delete();}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
     else if(['도로','인도','경계석','횡단보도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}
     else if(item.lines){

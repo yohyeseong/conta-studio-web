@@ -29,9 +29,9 @@
 // Temporary display/generation hold for the reported Yongsan area.
 // This rectangle is a review extent, NOT a legal/current military boundary.
 // Public returned park land may overlap; do not classify it as military.
-const reviewZones=[{id:'yongsan-review-20261006',bbox:[126.972,37.525,126.988,37.536],reason:'용산 일대 상세 표시·생성 경계 검토 중',sources:['https://www.parkyongsan.kr/front/lodging/land.do','https://yongsanparkstory.kr/intro/map.html']}];
+const reviewZones=[];
 const reviewOverlap=b=>reviewZones.some(z=>overlaps(z.bbox,b));
-function assertReview(bounds){if(reviewOverlap(bounds))throw Error('선택 영역에 용산 일대 임시 제외 구역이 포함되어 있습니다. 공개 공원 일부를 포함해 경계 검토가 끝날 때까지 생성하지 않습니다.');}
+function assertReview(bounds){if(reviewOverlap(bounds))throw Error('선택 영역에 용산 일대 임시 제외 구역이 포함되어 있습니다.');}
 const has=(v,word)=>String(v||'').toLowerCase().split(';').map(s=>s.trim()).includes(word);
 function tagged(t={}){return (t.military!==undefined&&!['no','false','0',''].includes(String(t.military).toLowerCase()))||['landuse','access','building','aerodrome','operator:type'].some(k=>has(t[k],'military'));}
 function box(g){let out=[Infinity,Infinity,-Infinity,-Infinity];function walk(c){if(typeof c?.[0]==='number'){out[0]=Math.min(out[0],c[0]);out[1]=Math.min(out[1],c[1]);out[2]=Math.max(out[2],c[0]);out[3]=Math.max(out[3],c[1]);}else if(Array.isArray(c))c.forEach(walk);}walk(g?.coordinates);return Number.isFinite(out[0])?out:null;}
@@ -143,3 +143,4 @@ async function addOfficialDetails(source,bounds,prepared){const details=prepared
 
 return {addOfficialDetails};})();
 onmessage=async e=>{const {id,bounds,geo}=e.data;try{MilitaryPolicy.assertReview(bounds);if(!(bounds[0]>=124&&bounds[1]>=33&&bounds[2]<=132&&bounds[3]<=39))throw Error('전국 데이터 범위 밖입니다.');if(geo==='prepare'){await Promise.all([modelSource.modelMetadata(bounds),officialSource.officialMetadata(bounds)]);postMessage({id,source:{ready:true}});return;}const official=officialSource.officialFeatures(bounds).then(value=>({value}),error=>({error})),base=await modelSource.packedModel(bounds,(message,progress)=>postMessage({id,message,progress})),result=await official;if(result.error)throw result.error;const source=await details.addOfficialDetails(base,bounds,result.value);MilitaryPolicy.assertPrepared(source,bounds);postMessage({id,source});}catch(error){postMessage({id,error:error.message});}};
+

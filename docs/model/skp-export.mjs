@@ -36,6 +36,7 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
    for(let i=0;i<volumeParts.length;i++){
     builder.addGroup(group=>{const mesh=connectedMesh(volumeParts[i],point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces){if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:item.name+' '+(i+1),material,layer});groups++;
    }
+  }else if(item.name==='하천'&&cad.riverEstimate?.enabled){for(const reach of cad.riverEstimate.surfaces)prism({poly:reach.poly,bottom:cad.terrain.base,roof:reach.level},item,'하천 · 높이 추정');
   }else if(item.name==='건물'||item.name==='파라펫'){
    const shapes=item.name==='건물'?cad.buildings:cad.parapets;
    for(let i=0;i<shapes.length;i++)prism(shapes[i],item,item.name+' '+(i+1));
