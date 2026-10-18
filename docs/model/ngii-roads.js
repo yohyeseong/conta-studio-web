@@ -21,7 +21,7 @@ root.applyNgiiRoads=function(data,ctx){
  if(data.roadLayerPresent??data.roads>0)covers['도로']=unionAll([pc.difference(unionAll(covers['도로']),coverage),...roads]);
  covers['인도']=unionAll(sidewalks);
  // Keep asphalt between stripes and when markings are disabled.
- covers['도로']=unionAll([covers['도로'],...crosswalks]);
+ covers['도로']=unionAll([unionAll(covers['도로']),...crosswalks]);
  covers['횡단보도']=ctx.roadLines?pc.intersection(ctx.crosswalkStripes(crosswalkBoundaries,pc,unionAll),rect):[];
  if(covers['횡단보도'].length)covers['도로']=pc.difference(covers['도로'],covers['횡단보도']);
  if(covers['인도'].length)covers['도로']=pc.difference(covers['도로'],covers['인도']);

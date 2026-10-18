@@ -73,3 +73,24 @@ function cadCover(r,terrain,polygons,factor,add,name){
  try{add(brep,name);}finally{brep.delete();}
 }
 
+
+// Exact terrain edge curves are lofted to the flat river edge. Preserve NURBS.
+function cadRiverBanks(r,terrain,estimate,factor,add){
+ const water=estimate.bankCovers['하천'];
+ for(const reach of estimate.surfaces){
+  const top=r.createTerrainBrep({...terrain,polygons:[reach.poly],factor});
+  if(!top||!top.isValid){if(top)top.delete();throw Error('하천 연결 경계를 만들 수 없습니다.');}
+  try{for(let i=0;i<top.edges().count;i++){
+   const edge=top.edges().get(i);let upper,lower,wall,brep,flatten;
+   try{
+    const a=edge.pointAtStart.map(v=>v/factor),b=edge.pointAtEnd.map(v=>v/factor);
+    if([0,1].some(k=>Math.abs(Math.abs(a[k])-(k?terrain.h:terrain.w)/2)<1e-6&&Math.abs(a[k]-b[k])<1e-6))continue;
+    upper=edge.toNurbsCurve();const offset=riverBankOffset(a,b,water,estimate.bankCovers,terrain);if(offset)upper.translate([0,0,offset*factor]);
+    const domain=upper.domain,difference=Array.from({length:9},(_,j)=>Math.abs(upper.pointAt(domain[0]+(domain[1]-domain[0])*j/8)[2]-reach.level*factor));
+    if(Math.max(...difference)<1e-7)continue;
+    lower=edge.toNurbsCurve();flatten=r.Transform.identity();flatten.m22=0;flatten.m23=reach.level*factor;if(!lower.transform(flatten))throw Error('하천 연결 경계 높이 처리 실패');
+    wall=r.NurbsSurface.createRuledSurface(upper,lower);brep=r.Brep.createFromSurface(wall);if(!brep||!brep.isValid)throw Error('하천 연결 NURBS 면 검증 실패');add(brep,'하천과 대지 연결면');
+   }finally{if(brep)brep.delete();if(wall)wall.delete();if(flatten)flatten.delete();if(lower)lower.delete();if(upper)upper.delete();edge.delete();}
+  }}finally{top.delete();}
+ }
+}

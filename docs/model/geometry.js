@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('river-elevation.js?v=river1','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=roadlines1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=river1','terrain-surface.js?v=official1');
+importScripts('detail-mask.js?v=riverbank1','river-banks.js?v=riverbank1','river-elevation.js?v=river1','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -23,6 +23,7 @@ const meshHeights=stepped?null:Array.from({length:(n+1)*(n+1)},(_,id)=>surface.h
 function meshHeight(x,y){const u=Math.max(0,Math.min(n-1e-9,(x+w/2)/dx)),v=Math.max(0,Math.min(n-1e-9,(y+h/2)/dy)),i=Math.floor(u),j=Math.floor(v),a=u-i,b=v-j,at=(ii,jj)=>meshHeights[jj*(n+1)+ii];return b<=a?at(i,j)*(1-a)+at(i+1,j)*(a-b)+at(i+1,j+1)*b:at(i,j)*(1-b)+at(i+1,j+1)*a+at(i,j+1)*(b-a);}
 const xy=c=>[(c[0]-center[0])*111319.490793*Math.cos(center[1]*Math.PI/180),(c[1]-center[1])*111319.490793];
 const rect=[[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]]];
+const detailBoxes=(MilitaryPolicy.detailExclusionZones||[]).filter(zone=>!d.bounds||MilitaryPolicy.overlaps(zone.bbox,d.bounds)).map(zone=>{const a=xy(zone.bbox.slice(0,2)),b=xy(zone.bbox.slice(2));return [...a,...b];}),detailMask=detailBoxes.map(([x,y,X,Y])=>[[[x,y],[X,y],[X,Y],[x,Y],[x,y]]]);
 const gisFeatures=[];const covers={'도로':[],'녹지':[],'하천':[],'철도':[],'바다':[],'인도':[],'횡단보도':[],'경계석':[]},buildings=[];let skipped=0,estimated=0;
 const geo=(d.osm.preparedGeo?MilitaryPolicy.assertPrepared(d.osm,d.bounds):MilitaryPolicy.assertSelection(d.osm,d.bounds||[-180,-90,180,90])).geo;
 let processed=0;for(const f of [...geo.features].sort((a,b)=>String(a.id).localeCompare(String(b.id)))){if(++processed%1000===0)report({progress:60+Math.round(processed/geo.features.length*4),message:'주변 요소 처리 중 · '+processed.toLocaleString()+' / '+geo.features.length.toLocaleString()});const t=f.properties||{},g=f.geometry;if(!g)continue;const cat=(t.building&&t.building!=='no')||(t['building:part']&&t['building:part']!=='no')?'건물':t.highway||t['area:highway']?'도로':t.waterway||t.natural==='water'?'하천':t.railway?'철도':['grass','forest','meadow','orchard'].includes(t.landuse)||['wood','scrub','grassland'].includes(t.natural)||['park','garden','pitch'].includes(t.leisure)?'녹지':null;const coords=[];const collect=c=>{if(typeof c[0]==='number')coords.push(xy(c));else for(const part of c)collect(part);};if(g.coordinates)collect(g.coordinates);if(coords.length){let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;for(const p of coords){xmin=Math.min(xmin,p[0]);xmax=Math.max(xmax,p[0]);ymin=Math.min(ymin,p[1]);ymax=Math.max(ymax,p[1]);}const anchor=g.type==='LineString'?coords[Math.floor(coords.length/2)]:[(xmin+xmax)/2,(ymin+ymax)/2];if(xmax>=-w/2&&xmin<=w/2&&ymax>=-h/2&&ymin<=h/2)gisFeatures.push({id:f.id,category:cat||'기타 GIS',properties:{...t},point:anchor,...(!cat?{geometry:{type:g.type,coordinates:(function project(c){return typeof c[0]==='number'?xy(c):c.map(project);})(g.coordinates)}}:{})});}if(!cat)continue;
@@ -64,7 +65,7 @@ for(const f of d.localRoads?.sourceLines||[]){
   }
   if(!valid||hi<=lo||Math.hypot(vx,vy)<1e-9)continue;
   const steps=Math.max(1,Math.ceil(Math.hypot(vx,vy)*(hi-lo)/Math.max(1,Math.min(dx,dy)/2)));
-  for(let j=0;j<steps;j++){const sample=t=>{const x=a[0]+vx*t,y=a[1]+vy*t;return point(x,y,z(x,y)+.08);};g.positions.push(...sample(lo+(hi-lo)*j/steps),...sample(lo+(hi-lo)*(j+1)/steps));}
+  for(let j=0;j<steps;j++){const sample=t=>{const x=a[0]+vx*t,y=a[1]+vy*t;return point(x,y,z(x,y)+.08);};for(const [u,v] of detailLineParts(sample(lo+(hi-lo)*j/steps),sample(lo+(hi-lo)*(j+1)/steps),detailBoxes))g.positions.push(...u,...v);}
   counts[name]=(counts[name]||0)+1;
  }
 }
@@ -77,6 +78,18 @@ if(d.riverEstimate){
 }
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
+if(detailMask.length){
+ buildings.splice(0,buildings.length,...buildings.flatMap(b=>pc.difference([b.poly],detailMask).map(poly=>({...b,poly}))));
+ for(const name of Object.keys(covers))if(name!=='녹지')covers[name]=pc.difference(covers[name],detailMask);
+ const within=p=>detailBoxes.some(b=>p[0]>=b[0]&&p[0]<=b[2]&&p[1]>=b[1]&&p[1]<=b[3]);
+ for(let i=gisFeatures.length-1;i>=0;i--){const f=gisFeatures[i];if(f.category==='녹지')continue;
+  if(f.geometry?.type==='MultiLineString'||f.geometry?.type==='LineString'){const lines=f.geometry.type==='LineString'?[f.geometry.coordinates]:f.geometry.coordinates,parts=lines.flatMap(r=>r.slice(1).flatMap((b,i)=>detailLineParts(r[i],b,detailBoxes)));if(parts.length){f.geometry={type:'MultiLineString',coordinates:parts};if(within(f.point))f.point=parts[0][0];}else gisFeatures.splice(i,1);}
+  else if(['Polygon','MultiPolygon'].includes(f.geometry?.type)){const polys=pc.difference(f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates,detailMask);if(polys.length){f.geometry={type:'MultiPolygon',coordinates:polys};if(within(f.point))f.point=polys[0][0][0];}else gisFeatures.splice(i,1);}
+  else if(within(f.point))gisFeatures.splice(i,1);
+ }
+ counts['건물']=buildings.length;if(importedBuildings!==null)importedBuildings=buildings.filter(b=>b.properties.ngii_import).length;
+}
+
 if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;counts['횡단보도']=covers['횡단보도'].length;}
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],covers['인도'],builtArea);}
 // Offset the original sidewalk perimeter before selection/terrain cuts.
@@ -91,12 +104,12 @@ if(d.curb&&covers['인도'].length){
 if(importedRoads)delete importedRoads.sidewalkBoundaries;
 if(stepped){let occupied=[];for(const name of ['경계석','횡단보도','인도','도로','하천','녹지','바다']){covers[name]=terrainPolygons(pc.difference(covers[name],occupied));occupied=pc.union(occupied,covers[name]);}}
 
-const riverEstimate=d.riverEstimate?estimateRiverLevels(terrainPolygons(covers['하천']),d.localRoads,{xy,bankHeight:z,z0,interval,stepped,w,h,n}):null;
+const riverEstimate=d.riverEstimate&&covers['하천'].length?estimateRiverLevels(terrainPolygons(covers['하천']),d.localRoads,{xy,bankHeight:z,z0,interval,stepped,w,h,n}):null;
 if(riverEstimate){if(!riverEstimate.surfaces.length)throw Error('선택 영역에 추정할 하천 면이 없습니다.');baseDepth=Math.max(baseDepth,...riverEstimate.surfaces.map(s=>-s.level+5));counts['하천']=riverEstimate.surfaces.length;}
 const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const sidewalkVolume=!!d.sidewalkVolume&&covers['인도'].length>0,sidewalkDepth=.2;
-const cad={gisFeatures,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
-if(riverEstimate)covers['하천']=[];
+const cad={gisFeatures,detailExclusions:detailBoxes,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
+if(riverEstimate){riverEstimate.banksConnected=!stepped;riverEstimate.bankCovers=cad.covers;covers['하천']=[];}
 if(stepped)cad.terrain.bands=makeSteps();
 function coverOffset(name){if(sidewalkVolume&&['도로','횡단보도'].includes(name))return -sidewalkDepth;return -(d.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?interval:0);}
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
@@ -149,6 +162,20 @@ if(riverEstimate)for(const {poly,level} of riverEstimate.surfaces){
  const top=z0+level,bottom=z0-baseDepth;face('하천',poly,()=>top);face('하천',poly,()=>bottom);
  for(const ring of poly)for(let i=1;i<ring.length;i++){const a=ring[i-1],b=ring[i];tri('하천',point(...a,top),point(...a,bottom),point(...b,bottom));tri('하천',point(...a,top),point(...b,bottom),point(...b,top));}
 }
+if(riverEstimate&&!stepped){
+ const water=cad.covers['하천'];let bankFaces=0;
+ for(const {poly,level} of riverEstimate.surfaces)for(const ring of poly)for(let i=1;i<ring.length;i++){
+  const a=ring[i-1],b=ring[i];
+  // The selection frame is a model cut, rather than a river bank.
+  if([0,1].some(k=>Math.abs(Math.abs(a[k])-(k?h:w)/2)<1e-6&&Math.abs(a[k]-b[k])<1e-6))continue;
+  const offset=riverBankOffset(a,b,water,cad.covers,cad.terrain);
+  for(const [u,v] of riverBankSegments(a,b,w,h,n)){
+   const at=point(...u,z(...u)+offset),bt=point(...v,z(...v)+offset),ab=point(...u,z0+level),bb=point(...v,z0+level);
+   if(Math.abs(at[2]-level)<1e-7&&Math.abs(bt[2]-level)<1e-7)continue;
+   tri('대지',at,bt,bb);tri('대지',at,bb,ab);bankFaces+=2;
+  }
+ }riverEstimate.bankFaces=bankFaces;
+}
 for(const {poly,height,usage,properties,heightEstimated} of buildings){const zs=poly[0].map(p=>z(...p)),base=Math.max(...zs),bottom=Math.min(...zs)-.02,roof=base+height;cad.buildings.push({poly,bottom:bottom-z0,roof:roof-z0,height,usage,properties,heightEstimated});face('건물',poly,()=>roof);face('건물',poly,()=>bottom);for(const r of poly)for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];tri('건물',point(...a,bottom),point(...b,bottom),point(...b,roof));tri('건물',point(...a,bottom),point(...b,roof),point(...a,roof));}}
 if(d.parapet){
  const height=Number(d.parapetHeight);if(!Number.isFinite(height)||height<.1||height>3)throw Error('파라펫 높이는 0.1–3m로 입력하세요.');
@@ -160,7 +187,7 @@ if(d.parapet){
  }counts['파라펫']=cad.parapets.length;
 }
 for(const name of ['인도','경계석'])if(!stepped&&groups[name]&&(name==='경계석'||sidewalkVolume)){const slab=surfaceVolume(groups[name].positions.finish(),sidewalkDepth);groups[name].positions=slab.positions;cad[name==='경계석'?'curbVolumeParts':'sidewalkVolumeParts']=slab.parts;}
-const contours=group('등고선');const unique=new Map();for(let i=0;i<contours.positions.length;i+=6){const a=contours.positions.slice(i,i+3),b=contours.positions.slice(i+3,i+6),ka=a.map(v=>Math.round(v*10000)).join(','),kb=b.map(v=>Math.round(v*10000)).join(',');if(ka!==kb)unique.set(ka<kb?ka+'|'+kb:kb+'|'+ka,[...a,...b]);}contours.positions=[...unique.values()].flat();
+const contours=group('등고선');if(detailBoxes.length){const clipped=[];for(let i=0;i<contours.positions.length;i+=6)for(const [a,b] of detailLineParts(contours.positions.slice(i,i+3),contours.positions.slice(i+3,i+6),detailBoxes))clipped.push(...a,...b);contours.positions=clipped;}const unique=new Map();for(let i=0;i<contours.positions.length;i+=6){const a=contours.positions.slice(i,i+3),b=contours.positions.slice(i+3,i+6),ka=a.map(v=>Math.round(v*10000)).join(','),kb=b.map(v=>Math.round(v*10000)).join(',');if(ka!==kb)unique.set(ka<kb?ka+'|'+kb:kb+'|'+ka,[...a,...b]);}contours.positions=[...unique.values()].flat();
 counts['대지']=stepped?cad.terrain.bands.length:1;counts['등고선']=Math.floor(group('등고선').positions.length/6);return {groups:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,{...v,positions:v.positions instanceof MeshPositions?v.positions.finish():new Float32Array(v.positions)}])),counts,estimated,skipped,z0,cad,importedRoads,importedBuildings};}
 onmessage=e=>{activeRequestId=e.data.id;try{if(!e.data.osm.preparedGeo&&typeof osmtogeojson==='undefined')importScripts('vendor/osmtogeojson.js');const result=makeModel(e.data);postMessage({id:e.data.id,result},Object.values(result.groups).map(g=>g.positions.buffer));}catch(error){postMessage({id:e.data.id,error:String(error.message||error)});}};
 

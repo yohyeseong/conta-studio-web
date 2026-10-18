@@ -17,7 +17,7 @@ function buildRhinoFile(rhino,items,scale,cad){
    const attr=new rhino.ObjectAttributes();attr.name=item.name;attr.layerIndex=index;attr.objectColor=color;attr.colorSource=rhino.ObjectColorSource.ColorFromLayer;attr.plotColor=color;attr.materialIndex=materialIndex;attr.materialSource=rhino.ObjectMaterialSource.MaterialFromLayer;attr.wireDensity=-1;
    try{
     const add=(brep,name)=>{attr.name=name;brepIndices.add(expected);if(brep.isSolid)solidIndices.add(expected);doc.objects().addBrep(brep,attr);expected++;};
-    if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
+    if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);if(cad.riverEstimate?.banksConnected)cadRiverBanks(rhino,cad.terrain,cad.riverEstimate,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
     else if(item.name==='하천'&&cad.riverEstimate?.enabled){for(const reach of cad.riverEstimate.surfaces){const b=cadBuilding(rhino,{poly:reach.poly,bottom:cad.terrain.base,roof:reach.level},factor);try{add(b,'하천 · 표고 자료 기반 높이 추정');}finally{b.delete();}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
