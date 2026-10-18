@@ -1,5 +1,5 @@
 import './building-use.js?v=site3';
-import {gisLabels} from './site-gis.mjs?v=lines1';
+import {gisLabels} from './site-gis.mjs?v=cad2';
 // Plan diagrams use original polygon boundaries instead of projected mesh triangles.
 export function siteDiagram(cad,items,options={}){
  const w=cad.terrain.w,h=cad.terrain.h;if(!(w>0&&h>0))throw Error('생성된 모델의 영역 정보가 없습니다.');
@@ -8,7 +8,7 @@ export function siteDiagram(cad,items,options={}){
  const number=v=>Number(v.toFixed(3)),xy=p=>[number(left+(p[0]+w/2)*scale),number(top+(h/2-p[1])*scale)];
  const path=poly=>poly.map(r=>r.map((p,i)=>(i?'L':'M')+xy(p).join(' ')).join(' ')+'Z').join(' ');
  const parts=[],legend=[],byName=new Map(items.map(i=>[i.name,i]));
- for(const name of ['대지','바다','하천','녹지','도로','인도','횡단보도','철도','등고선','건물','파라펫',...items.filter(i=>i.name.startsWith('원본 선')).map(i=>i.name)]){
+ for(const name of ['대지','바다','하천','녹지','도로','인도','횡단보도','철도','등고선','건물','파라펫','캐드']){
   const item=byName.get(name);if(!item)continue;
   const color=/^#[\da-f]{6}$/i.test(item.color)?item.color:'#aaaaaa';
   let polys=name==='대지'?cad.terrain.polygons:name==='건물'?cad.buildings.map(b=>b.poly):name==='파라펫'?cad.parapets.map(b=>b.poly):cad.covers[name]||[];

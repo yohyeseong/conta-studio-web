@@ -18,7 +18,7 @@ root.applyNgiiRoads=function(data,ctx){
  }
  // Keep server roads outside the source bounding rectangle only. In the source
  // rectangle, never union guessed-width strips over the original SHP boundary.
- covers['도로']=unionAll([pc.difference(unionAll(covers['도로']),coverage),...roads]);
+ if(data.roadLayerPresent??data.roads>0)covers['도로']=unionAll([pc.difference(unionAll(covers['도로']),coverage),...roads]);
  covers['인도']=unionAll(sidewalks);
  covers['횡단보도']=unionAll(crosswalks);
  if(covers['횡단보도'].length)covers['도로']=pc.difference(covers['도로'],covers['횡단보도']);

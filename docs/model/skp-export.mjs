@@ -31,14 +31,18 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
  for(let index=0;index<items.length;index++){
   const item=items[index],material=materials.get(item.name),layer=layers.get(item.name);
   progress(90+Math.round(index/items.length*7),'SketchUp · '+item.name+' 저장 중');
-  if(item.name==='건물'||item.name==='파라펫'){
+  if(item.name==='인도'&&cad.sidewalkVolumeParts?.length){
+   for(let i=0;i<cad.sidewalkVolumeParts.length;i++){
+    builder.addGroup(group=>{const mesh=connectedMesh(cad.sidewalkVolumeParts[i],point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces){if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:'인도 '+(i+1),material,layer});groups++;
+   }
+  }else if(item.name==='건물'||item.name==='파라펫'){
    const shapes=item.name==='건물'?cad.buildings:cad.parapets;
    for(let i=0;i<shapes.length;i++)prism(shapes[i],item,item.name+' '+(i+1));
   }else if(cad.terrain.bands&&!item.lines){
    let count=0;for(const band of cad.terrain.bands){
     const polys=item.name==='대지'?band.polygons:band.covers[item.name]||[];
-    const offset=-(cad.terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(item.name)?cad.terrain.interval:0);
-    for(const poly of polys)prism({poly,bottom:cad.terrain.base,roof:band.level+offset},item,item.name+' '+(++count),item.name==='철도');
+    const offset=cad.terrain.sidewalkVolume&&['도로','횡단보도'].includes(item.name)?-cad.terrain.sidewalkDepth:-(cad.terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(item.name)?cad.terrain.interval:0);
+    for(const poly of polys)prism({poly,bottom:cad.terrain.sidewalkVolume&&item.name==='인도'?band.level-cad.terrain.sidewalkDepth:cad.terrain.base,roof:band.level+offset},item,item.name+' '+(++count),item.name==='철도');
    }
   }else{
    builder.addGroup(group=>{

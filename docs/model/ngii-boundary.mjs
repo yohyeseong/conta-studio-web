@@ -13,7 +13,13 @@ export function polygonizeBoundaries(lines,tolerance=.02){
  const add=(s,id,t)=>s.cuts.push({t:Math.max(0,Math.min(1,t)),id});
  function onSegment(id,s){const p=nodes[id],a=nodes[s.a],b=nodes[s.b],dx=b[0]-a[0],dy=b[1]-a[1],t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy);if(t>0&&t<1&&Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy)<=tolerance)add(s,id,t);}
  // Node crossings and T junctions before walking half edges.
- for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++){
+ const spatial=new Map(),longSegments=[],candidatePairs=[];const grid=40;
+ for(let i=0;i<segments.length;i++){const s=segments[i],a=nodes[s.a],b=nodes[s.b],x0=Math.floor((Math.min(a[0],b[0])-tolerance)/grid),x1=Math.floor((Math.max(a[0],b[0])+tolerance)/grid),y0=Math.floor((Math.min(a[1],b[1])-tolerance)/grid),y1=Math.floor((Math.max(a[1],b[1])+tolerance)/grid),candidates=new Set(longSegments);
+  if((x1-x0+1)*(y1-y0+1)>10000){for(let j=0;j<i;j++)candidates.add(j);longSegments.push(i);}
+  else for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){const key=x+','+y;if(!spatial.has(key))spatial.set(key,[]);for(const j of spatial.get(key))candidates.add(j);spatial.get(key).push(i);}
+  for(const j of candidates)candidatePairs.push([j,i]);
+ }
+ for(const [i,j] of candidatePairs){
   const s=segments[i],t=segments[j],a=nodes[s.a],b=nodes[s.b],c=nodes[t.a],d=nodes[t.b];
   if(Math.max(a[0],b[0])+tolerance<Math.min(c[0],d[0])||Math.max(c[0],d[0])+tolerance<Math.min(a[0],b[0])||Math.max(a[1],b[1])+tolerance<Math.min(c[1],d[1])||Math.max(c[1],d[1])+tolerance<Math.min(a[1],b[1]))continue;
   onSegment(s.a,t);onSegment(s.b,t);onSegment(t.a,s);onSegment(t.b,s);

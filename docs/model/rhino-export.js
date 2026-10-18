@@ -16,7 +16,19 @@ function buildRhinoFile(rhino,items,scale,cad){
    const attr=new rhino.ObjectAttributes();attr.name=item.name;attr.layerIndex=index;attr.objectColor=color;attr.colorSource=rhino.ObjectColorSource.ColorFromLayer;attr.plotColor=color;attr.materialIndex=materialIndex;attr.materialSource=rhino.ObjectMaterialSource.MaterialFromLayer;attr.wireDensity=-1;
    try{
     const add=(brep,name)=>{attr.name=name;doc.objects().addBrep(brep,attr);expected++;};
-    if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
+    // The optional curb follows the same planar terrain facets as the preview.
+    // Save shared facets so the 200mm curb is identical in the viewport and file.
+    if(cad.terrain.sidewalkVolume&&!cad.terrain.bands&&!item.lines&&['대지','도로','인도','녹지','하천','철도','바다','횡단보도'].includes(item.name)){
+     for(const p of (item.name==='인도'?cad.sidewalkVolumeParts:[item.positions])){
+     const mesh=new rhino.Mesh(),vertices=new Map();let brep;
+     try{const vertex=i=>{const key=[p[i],p[i+1],p[i+2]].join(',');if(!vertices.has(key))vertices.set(key,mesh.vertices().add(p[i]*factor,p[i+1]*factor,p[i+2]*factor));return vertices.get(key);};
+      for(let i=0;i<p.length;i+=9){const a=vertex(i),b=vertex(i+3),c=vertex(i+6);if(a!==b&&b!==c&&a!==c)mesh.faces().addTriFace(a,b,c);}
+      mesh.normals().computeNormals();mesh.compact();if(!mesh.isValid)throw Error('인도 높이 면 검증에 실패했습니다.');
+      if(item.name==='인도'&&!mesh.isClosed)throw Error('200mm 인도 볼륨이 닫히지 않았습니다.');doc.objects().addMesh(mesh,attr);expected++;
+     }finally{if(brep)brep.delete();mesh.delete();}
+     }
+    }
+    else if(item.name==='대지'){cadTerrain(rhino,cad.terrain,factor,add);}
     else if(item.name==='건물'){for(let i=0;i<cad.buildings.length;i++){const b=cadBuilding(rhino,cad.buildings[i],factor);try{add(b,'건물 '+(i+1));}finally{b.delete();}}}
     else if(item.name==='파라펫'){for(const wall of cad.parapets||[]){const b=cadBuilding(rhino,wall,factor);try{add(b,'파라펫');}finally{b.delete();}}}
     else if(['도로','인도','횡단보도','녹지','하천','철도','바다'].includes(item.name)){if(!cad.covers?.[item.name])throw Error('모델을 다시 생성한 뒤 저장하세요.');cadCover(rhino,cad.terrain,cad.covers[item.name],factor,add,item.name);}

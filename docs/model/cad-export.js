@@ -55,7 +55,7 @@ function cadCover(r,terrain,polygons,factor,add,name){
  if(terrain.bands){
   for(const band of terrain.bands){const polys=band.covers[name];if(!polys?.length)continue;
    if(name==='철도'){cadCover(r,{...terrain,bands:null,points:terrain.points.map(p=>[p[0],p[1],band.level])},polys,factor,add,name);continue;}
-   for(const poly of polys){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level-(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0)},factor);try{add(solid,name);}finally{solid.delete();}}
+   for(const poly of polys){const offset=terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?terrain.sidewalkDepth:(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0);const solid=cadBuilding(r,{poly,bottom:terrain.sidewalkVolume&&name==='인도'?band.level-terrain.sidewalkDepth:terrain.base,roof:band.level-offset},factor);try{add(solid,name);}finally{solid.delete();}}
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
