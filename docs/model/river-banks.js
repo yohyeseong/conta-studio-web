@@ -33,7 +33,7 @@ root.riverBankOffset=function(a,b,water,covers,terrain){
  const x=b[0]-a[0],y=b[1]-a[1],length=Math.hypot(x,y);if(length<1e-9)return 0;
  for(const sign of [-1,1]){const probe=[(a[0]+b[0])/2-sign*y/length*.002,(a[1]+b[1])/2+sign*x/length*.002];if(contains(water,probe))continue;
   for(const name of ['횡단보도','경계석','인도','도로','녹지','바다'])if(contains(covers[name]||[],probe))return terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?-terrain.sidewalkDepth:-(terrain.lowerStep&&['도로','횡단보도','바다'].includes(name)?terrain.interval:0);
- }return 0;
+ }return -(terrain.groundDepth||0);
 };
 root.riverBankSegments=function(a,b,w,h,n){
  const dx=w/n,dy=h/n,ts=[0,1],vx=b[0]-a[0],vy=b[1]-a[1],add=t=>{if(t>1e-10&&t<1-1e-10)ts.push(t);};

@@ -16,39 +16,16 @@ function cadBuilding(r,building,factor){
 }
 
 function cadTerrain(r,terrain,factor,add){
+ const depth=terrain.groundDepth??.2;
  if(terrain.bands){
-  for(const band of terrain.bands)for(const poly of band.polygons){const solid=cadBuilding(r,{poly,bottom:terrain.base,roof:band.level},factor);try{add(solid,'대지 · 계단 '+band.level+'m');}finally{solid.delete();}}
-  return;
+  for(const band of terrain.bands)for(const poly of band.polygons){const solid=cadBuilding(r,{poly,bottom:band.level-depth,roof:band.level},factor);try{add(solid,'대지 · 200mm 솔리드');}finally{solid.delete();}}return;
  }
- terrain={...terrain,polygons:terrainPolygons(terrain.polygons)};
- const {count,points,w,h,base}=terrain;
- const surface=r.NurbsSurface.create(3,false,4,4,count,count);
- try{
-  surface.knotsU().createUniformKnots(1);surface.knotsV().createUniformKnots(1);
-  for(let j=0;j<count;j++)for(let i=0;i<count;i++){
-   const p=points[j*count+i];surface.points().set(i,j,[p[0]*factor,p[1]*factor,p[2]*factor,1]);
-  }
-  if(terrain.polygons.length){
-   const top=r.createTerrainBrep({...terrain,factor});
-   if(!top||!top.isValid){if(top)top.delete();throw Error('지형 경계 면 검증에 실패했습니다.');}
-   try{add(top,'대지 · 매끄러운 지형');}finally{top.delete();}
-  }
-  // Four continuous ruled perimeter walls and one planar base retain the model pedestal.
-  for(const [direction,parameter] of [[0,0],[0,count-3],[1,0],[1,count-3]]){
-   const top=surface.isoCurve(direction,parameter),edge=[];
-   for(let k=0;k<count;k++){
-    const i=direction===0?k:(parameter===0?0:count-1),j=direction===0?(parameter===0?0:count-1):k,p=points[j*count+i];
-    edge.push([p[0]*factor,p[1]*factor,base*factor]);
-   }
-   const bottom=r.NurbsCurve.create(false,3,edge);let wall,brep;
-   try{wall=r.NurbsSurface.createRuledSurface(top,bottom);brep=r.Brep.createFromSurface(wall);if(!brep||!brep.isValid)throw Error('지형 옆면 검증에 실패했습니다.');add(brep,'대지 · 옆면');}
-   finally{if(brep)brep.delete();if(wall)wall.delete();bottom.delete();top.delete();}
-  }
-  const boundary=new r.PolylineCurve([[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2],[-w/2,-h/2]].map(p=>[p[0]*factor,p[1]*factor,base*factor]));
-  const plane=r.Plane.worldXY();plane.origin=[0,0,base*factor];let bottom;
-  try{bottom=r.Brep.createTrimmedPlane(plane,boundary);if(!bottom||!bottom.isValid)throw Error('지형 바닥 검증에 실패했습니다.');add(bottom,'대지 · 바닥');}
-  finally{if(bottom)bottom.delete();boundary.delete();}
- }finally{surface.delete();}
+ if(typeof r.createTerrainSolidBrep!=='function')throw Error('NURBS 저장 모듈을 다시 불러오세요.');
+ for(const poly of terrainPolygons(terrain.polygons)){
+  const solid=r.createTerrainSolidBrep({...terrain,polygons:[poly],factor,solidThickness:depth});
+  if(!solid||!solid.isValid||!solid.isSolid||!solid.isManifold){if(solid)solid.delete();throw Error('대지 200mm NURBS 솔리드 검증 실패');}
+  try{add(solid,'대지 · 200mm NURBS 솔리드');}finally{solid.delete();}
+ }
 }
 
 function cadCover(r,terrain,polygons,factor,add,name){

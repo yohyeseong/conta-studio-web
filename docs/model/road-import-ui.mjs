@@ -1,4 +1,4 @@
-import {featuresForBounds} from './ngii-zip.mjs?v=source2';
+import {featuresForBounds} from './ngii-zip.mjs?v=source3';
 export function setupRoadImport(map,{canChange,onChange,onGenerate}){
  const $=id=>document.getElementById(id),input=$('road-zip-file'),choose=$('road-zip-open'),clear=$('road-zip-clear'),generate=$('road-zip-generate'),cancel=$('road-zip-cancel'),note=$('road-zip-status'),sidewalks=$('road-zip-sidewalks');
  choose.disabled=false;
@@ -12,7 +12,7 @@ export function setupRoadImport(map,{canChange,onChange,onGenerate}){
  };
  choose.onclick=()=>{if(!canChange()){show('모델 생성이 끝난 뒤 자료를 변경하세요.');return;}input.click();};
  cancel.onclick=()=>{sequence++;finish();show('불러오기를 취소했습니다. 이전 자료는 유지됩니다.');};
- clear.onclick=()=>{if(!canChange())return;data=null;revision++;redraw();refreshControls();onChange();show('ZIP 적용을 해제했습니다. 기본 도로 자료로 다시 생성할 수 있습니다.');};
+ clear.onclick=()=>{if(!canChange())return;data=null;revision++;redraw();refreshControls();onChange();show('파일 적용을 해제했습니다. 기본 도로 자료로 다시 생성할 수 있습니다.');};
  generate.onclick=async()=>{
   if(!data||worker||generating||!canChange())return;
   const [w,s,e,n]=data.bbox,b=L.latLngBounds([s,w],[n,e]),lat=b.getCenter().lat,width=(e-w)*111319.490793*Math.cos(lat*Math.PI/180),height=(n-s)*111319.490793;
@@ -22,16 +22,16 @@ export function setupRoadImport(map,{canChange,onChange,onGenerate}){
   generating=true;refreshControls();
   try{await onGenerate();}finally{generating=false;refreshControls();}
  };
- sidewalks.onchange=()=>{if(!canChange()){sidewalks.checked=!sidewalks.checked;return;}revision++;redraw();onChange();show(data?'인도 '+(sidewalks.checked?'포함':'제외')+' · 선택 영역으로 다시 생성하세요.':'ZIP을 먼저 불러오세요.');};
- input.onchange=()=>{const file=input.files?.[0];if(!file)return;if(!canChange()){input.value='';return;}
-  const current=++sequence;choose.disabled=true;clear.disabled=true;generate.disabled=true;cancel.hidden=false;show('ZIP 파일 목록 확인 중…');worker=new Worker('shp-import-worker.js?v=source2');timer=setTimeout(()=>{if(current===sequence){sequence++;finish();show('불러오기 시간이 초과됐습니다. 자료를 작은 영역으로 나누어 주세요.');}},120000);
+ sidewalks.onchange=()=>{if(!canChange()){sidewalks.checked=!sidewalks.checked;return;}revision++;redraw();onChange();show(data?'인도 '+(sidewalks.checked?'포함':'제외')+' · 선택 영역으로 다시 생성하세요.':'파일을 먼저 불러오세요.');};
+ input.onchange=()=>{const files=Array.from(input.files||[]),file=files[0],filename=files.length===1?file?.name:files.length+'개 파일';if(!file)return;if(!canChange()){input.value='';return;}
+  const current=++sequence;choose.disabled=true;clear.disabled=true;generate.disabled=true;cancel.hidden=false;show('선택 파일 목록 확인 중…');worker=new Worker('shp-import-worker.js?v=source3');timer=setTimeout(()=>{if(current===sequence){sequence++;finish();show('불러오기 시간이 초과됐습니다. 자료를 작은 영역으로 나누어 주세요.');}},120000);
   worker.onmessage=e=>{if(current!==sequence)return;const {result,error,message,progress}=e.data;if(message)show(message+' · '+progress+'%');
    if(error){finish();show('불러오기 실패: '+error+' 이전 자료는 유지됩니다.');return;}if(!result)return;
-   data=result;data.filename=file.name;revision++;finish();redraw();onChange();
+   data=result;data.filename=filename;revision++;finish();redraw();onChange();
    const [w,s,east,n]=data.bbox,b=L.latLngBounds([s,w],[n,east]),lat=b.getCenter().lat,width=(east-w)*111319.490793*Math.cos(lat*Math.PI/180),height=(n-s)*111319.490793;
    map.fitBounds(b,{padding:[24,24],animate:false});if(width<=5000&&height<=5000&&width*height<=25e6)window.contaSelection.setBounds(b);
-   show(file.name+' · 도로 면 '+data.roads+'개 · 인도 '+data.sidewalks+'개 · 참고 선 '+data.references.length+'개'+(data.boundaryStats?.openSegments?' · 열린 경계 '+data.boundaryStats.openSegments+'구간 면 생성 제외':'')+(data.boundaryStats?.ambiguousFaces?' · 확인 필요 '+data.boundaryStats.ambiguousFaces+'영역 제외':'')+' · 파일 건물 '+(data.buildingFeatures?.length||0)+'개'+' · 원본 선 '+data.sourceLines.length+'개 · 횡단보도 '+data.crosswalks+'개(현재 ZIP 기준)'+' · '+(width>5000||height>5000?'사용할 영역을 선택하세요.':'선택 파일로 콘타 생성 버튼을 누르세요.'));
-  };worker.onerror=e=>{if(current!==sequence)return;finish();show('ZIP 처리 오류: '+(e.message||'파일을 확인하세요.')+' 이전 자료는 유지됩니다.');};worker.postMessage({file});
+   show(filename+' · 도로 면 '+data.roads+'개 · 인도 '+data.sidewalks+'개 · 참고 선 '+data.references.length+'개'+(data.boundaryStats?.openSegments?' · 열린 경계 '+data.boundaryStats.openSegments+'구간 면 생성 제외':'')+(data.boundaryStats?.ambiguousFaces?' · 확인 필요 '+data.boundaryStats.ambiguousFaces+'영역 제외':'')+' · 파일 건물 '+(data.buildingFeatures?.length||0)+'개'+' · 원본 선 '+data.sourceLines.length+'개 · 횡단보도 '+data.crosswalks+'개(선택 자료 기준)'+' · '+(width>5000||height>5000?'사용할 영역을 선택하세요.':'선택 파일로 콘타 생성 버튼을 누르세요.'));
+  };worker.onerror=e=>{if(current!==sequence)return;finish();show('파일 처리 오류: '+(e.message||'파일을 확인하세요.')+' 이전 자료는 유지됩니다.');};worker.postMessage({files});
  };
- return {hasRiverElevation:()=>!!(data?.waterFeatures?.length&&data?.elevationFeatures?.length),refreshControls,get loading(){return !!worker;},key:()=>revision+':'+sidewalks.checked,forBounds:bounds=>data?featuresForBounds(data,bounds,sidewalks.checked):null,summary:()=>data?'ZIP 도로 '+data.roads+'개 · 인도 '+(sidewalks.checked?data.sidewalks:0)+'개 · 파일 건물 '+(data.buildingFeatures?.length||0)+'개':''};
+ return {hasRiverElevation:()=>!!(data?.waterFeatures?.length&&data?.elevationFeatures?.length),refreshControls,get loading(){return !!worker;},key:()=>revision+':'+sidewalks.checked,forBounds:bounds=>data?featuresForBounds(data,bounds,sidewalks.checked):null,summary:()=>data?'파일 도로 '+data.roads+'개 · 인도 '+(sidewalks.checked?data.sidewalks:0)+'개 · 파일 건물 '+(data.buildingFeatures?.length||0)+'개':''};
 }

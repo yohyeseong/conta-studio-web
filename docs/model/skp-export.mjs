@@ -31,11 +31,12 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
  for(let index=0;index<items.length;index++){
   const item=items[index],material=materials.get(item.name),layer=layers.get(item.name);
   progress(90+Math.round(index/items.length*7),'SketchUp · '+item.name+' 저장 중');
-  const volumeParts=item.name==='경계석'?cad.curbVolumeParts:item.name==='인도'?cad.sidewalkVolumeParts:null;
+  const volumeParts=item.name==='대지'?cad.groundVolumeParts:item.name==='경계석'?cad.curbVolumeParts:item.name==='인도'?cad.sidewalkVolumeParts:null;
   if(volumeParts?.length){
    for(let i=0;i<volumeParts.length;i++){
     builder.addGroup(group=>{const mesh=connectedMesh(volumeParts[i],point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces){if(!hasSurface(ring))continue;group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:item.name+' '+(i+1),material,layer});groups++;
    }
+   if(item.name==='대지'&&cad.riverBankPositions?.length){builder.addGroup(group=>{const mesh=connectedMesh(cad.riverBankPositions,point,factor);for(const ring of mesh.faces)if(hasSurface(ring)){group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:'하천과 대지 연결면',material,layer});groups++;}
   }else if(item.name==='하천'&&cad.riverEstimate?.enabled){for(const reach of cad.riverEstimate.surfaces)prism({poly:reach.poly,bottom:cad.terrain.base,roof:reach.level},item,'하천 · 높이 추정');
    if(cad.riverEstimate.regularPolygons?.length){if(cad.terrain.bands){for(const band of cad.terrain.bands)for(const poly of band.covers['하천']||[])prism({poly,bottom:cad.terrain.base,roof:band.level-(cad.terrain.lowerStep?cad.terrain.interval:0)},item,'하천');}else if(cad.riverRegularPositions?.length){builder.addGroup(group=>{const mesh=connectedMesh(cad.riverRegularPositions,point,factor);for(const edge of mesh.boundaries)group.addPolyline(edge,{material});for(const ring of mesh.faces)if(hasSurface(ring)){group.addFace(ring,{material,backMaterial:material,softEdges:true,smoothEdges:true,hiddenEdges:true});faces++;}},{name:'하천',material,layer});groups++;}}
   }else if(item.name==='건물'||item.name==='파라펫'){
@@ -45,7 +46,7 @@ export function buildSkp(items,scale,cad,progress=()=>{}){
    let count=0;for(const band of cad.terrain.bands){
     const polys=item.name==='대지'?band.polygons:band.covers[item.name]||[];
     const offset=cad.terrain.sidewalkVolume&&['도로','횡단보도'].includes(item.name)?-cad.terrain.sidewalkDepth:-(cad.terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(item.name)?cad.terrain.interval:0);
-    for(const poly of polys)prism({poly,bottom:(item.name==='경계석'||cad.terrain.sidewalkVolume&&item.name==='인도')?band.level-.2:cad.terrain.base,roof:band.level+offset},item,item.name+' '+(++count),item.name==='철도');
+    for(const poly of polys)prism({poly,bottom:item.name==='대지'?band.level-(cad.terrain.groundDepth??.2):(item.name==='경계석'||cad.terrain.sidewalkVolume&&item.name==='인도')?band.level-.2:cad.terrain.base,roof:band.level+offset},item,item.name+' '+(++count),item.name==='철도');
    }
   }else{
    builder.addGroup(group=>{
