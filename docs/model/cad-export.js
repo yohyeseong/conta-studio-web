@@ -59,7 +59,15 @@ function cadCover(r,terrain,polygons,factor,add,name){
   }return;
  }
  const clean=terrainPolygons(polygons);if(!clean.length)return;
- const points=terrain.points.map(p=>[p[0],p[1],p[2]-(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0)]);
+ if(terrain.sidewalkVolume&&name==='인도'){
+  if(typeof r.createTerrainSolidBrep!=='function')throw Error('NURBS 저장 모듈을 새로 불러온 뒤 다시 저장하세요.');
+  for(const poly of clean){const solid=r.createTerrainSolidBrep({...terrain,points:terrain.points,polygons:[poly],factor,solidThickness:terrain.sidewalkDepth});
+   if(!solid||!solid.isValid||!solid.isSolid||!solid.isManifold){if(solid)solid.delete();throw Error('200mm 인도 NURBS 솔리드 검증에 실패했습니다.');}
+   try{add(solid,'인도 · 200mm NURBS 솔리드');}finally{solid.delete();}
+  }return;
+ }
+ const offset=terrain.sidewalkVolume&&['도로','횡단보도'].includes(name)?terrain.sidewalkDepth:(terrain.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?terrain.interval:0);
+ const points=terrain.points.map(p=>[p[0],p[1],p[2]-offset]);
  const brep=r.createTerrainBrep({...terrain,points,polygons:clean,factor});
  if(!brep||!brep.isValid){if(brep)brep.delete();throw Error(name+' 경계 면 검증에 실패했습니다.');}
  try{add(brep,name);}finally{brep.delete();}

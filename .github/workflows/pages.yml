@@ -46,14 +46,14 @@ jobs:
           PY
       - uses: actions/checkout@v4
         with:
-          ref: 26842eb84514d68f9b26cc64457a5eaa9148e6a0
+          ref: a06760d73346f07a57714176ef05a9648be33889
           path: verified-cad-runtime
       - name: Prepare verified native CAD runtime
         run: |
           python - <<'PY'
           import pathlib,json,hashlib,shutil
           root=pathlib.Path('verified-cad-runtime');manifest=json.loads((root/'manifest.json').read_text())
-          assert manifest['source']=='350c375aebf0a865c54aeb9e0adc37d1eb0d17f7'
+          assert manifest['source']=='350c375aebf0a865c54aeb9e0adc37d1eb0d17f7' and manifest['solidVersion']==1
           targets={'terrain-cad.js':'terrain-cad.js','terrain-cad.wasm':'terrain-cad.wasm','LICENSE-rhino3dm.txt':'licenses/terrain-rhino3dm.txt','LICENSE-opennurbs.txt':'licenses/terrain-opennurbs.txt'}
           for name,target in targets.items():
               data=(root/name).read_bytes();info=manifest['files'][name]
@@ -110,3 +110,4 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
