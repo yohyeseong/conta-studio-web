@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('surface-volume.js?v=curb1','ngii-roads.js?v=curbstone1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=exclude1','terrain-surface.js?v=official1');
+importScripts('crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=roadlines1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=exclude1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -51,7 +51,7 @@ if(d.localRoads?.buildingLayerPresent){
  counts['건물']=buildings.length;
  report({progress:64,message:'업로드한 파일의 건물 '+importedBuildings+'개 적용 중'});
 }
-const importedRoads=applyNgiiRoads(d.localRoads,{pc,unionAll,bufferLine,xy,rect,covers,gisFeatures});
+const importedRoads=applyNgiiRoads(d.localRoads,{pc,unionAll,bufferLine,xy,rect,covers,gisFeatures,roadLines:!!d.roadLines,crosswalkStripes});
 // Preserve source XY lines as curves, clipped to the model, without width buffers.
 // Elevations are draped on the generated terrain; they are not survey Z values.
 for(const f of d.localRoads?.sourceLines||[]){
@@ -71,7 +71,7 @@ for(const f of d.localRoads?.sourceLines||[]){
 if(d.coast) covers['바다']=pc.difference(rect,d.coast.map(r=>[r.map(xy)]));
 report({progress:65,message:'도로 연결과 레이어 정리 중'});
 for(const k in covers)covers[k]=unionAll(covers[k]);
-if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;}
+if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;counts['횡단보도']=covers['횡단보도'].length;}
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],covers['인도'],builtArea);}
 // Offset the original sidewalk perimeter before selection/terrain cuts.
 // A 360mm symmetric stroke clipped INSIDE the footprint yields a 180mm curb.
@@ -87,7 +87,7 @@ if(stepped){let occupied=[];for(const name of ['경계석','횡단보도','인�
 
 const mask=unionAll(Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys)),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const sidewalkVolume=!!d.sidewalkVolume&&covers['인도'].length>0,sidewalkDepth=.2;
-const cad={gisFeatures,terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
+const cad={gisFeatures,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
 if(stepped)cad.terrain.bands=makeSteps();
 function coverOffset(name){if(sidewalkVolume&&['도로','횡단보도'].includes(name))return -sidewalkDepth;return -(d.lowerStep&&['도로','횡단보도','하천','바다'].includes(name)?interval:0);}
 function face(k,p,zf){const flat=earcut.flatten(p);const ids=earcut(flat.vertices,flat.holes,2);for(let q=0;q<ids.length;q+=3)tri(k,...ids.slice(q,q+3).map(i=>{const x=flat.vertices[i*2],y=flat.vertices[i*2+1];return point(x,y,zf(x,y));}));}
