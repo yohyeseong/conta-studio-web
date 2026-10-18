@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('source-terrain.js?v=source1','detail-mask.js?v=riverbank1','river-banks.js?v=source1','river-elevation.js?v=source1','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
+importScripts('source-terrain.js?v=source2','detail-mask.js?v=riverbank1','river-banks.js?v=source2','river-elevation.js?v=source2','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -102,14 +102,14 @@ if(detailMask.length){
 if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;counts['횡단보도']=covers['횡단보도'].length;}
 const sourceBanks=[];
 function segmentBounds(a,b){let lo=0,hi=1;const vx=b[0]-a[0],vy=b[1]-a[1];for(const [p,q] of [[-vx,a[0]+w/2],[vx,w/2-a[0]],[-vy,a[1]+h/2],[vy,h/2-a[1]]]){if(Math.abs(p)<1e-12){if(q<0)return null;continue;}const t=q/p;if(p<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}return hi-lo>1e-8?[lo,hi]:null;}
-const waterForBanks=covers['하천'],waterEdges=waterForBanks.flatMap(p=>p.flatMap(r=>r.slice(1).map((b,i)=>[r[i],b]))),nearWater=p=>{let out={distance:Infinity};for(const [a,b] of waterEdges){const vx=b[0]-a[0],vy=b[1]-a[1],t=Math.max(0,Math.min(1,((p[0]-a[0])*vx+(p[1]-a[1])*vy)/(vx*vx+vy*vy)||0)),q=[a[0]+vx*t,a[1]+vy*t],distance=Math.hypot(p[0]-q[0],p[1]-q[1]);if(distance<out.distance)out={point:q,distance};}return out;};
-for(const pair of sourcePairs)for(let i=1;i<pair.nodes.length;i++){
- const u=pair.nodes[i-1],v=pair.nodes[i],ub=segmentBounds(u.upper,v.upper),lb=segmentBounds(u.lower,v.lower);if(!ub||!lb)continue;const lo=Math.max(ub[0],lb[0]),hi=Math.min(ub[1],lb[1]);if(hi-lo<1e-8)continue;const at=(a,b,t)=>a.map((x,k)=>x+(b[k]-x)*t),a=at(u.upper,v.upper,lo),b=at(u.upper,v.upper,hi),c=at(u.lower,v.lower,lo),e=at(u.lower,v.lower,hi),poly=[[[...a],[...b],[...e],[...c],[...a]]];
+const waterForBanks=covers['하천'];
+for(const pair of sourcePairs){const nodes=riverBankRibbon(pair,waterForBanks);for(let i=1;i<nodes.length;i++){
+ const u=nodes[i-1],v=nodes[i],ub=segmentBounds(u.upper,v.upper),lb=segmentBounds(u.lower,v.lower);if(!ub||!lb)continue;const lo=Math.max(ub[0],lb[0]),hi=Math.min(ub[1],lb[1]);if(hi-lo<1e-8)continue;const at=(a,b,t)=>a.map((x,k)=>x+(b[k]-x)*t),a=at(u.upper,v.upper,lo),b=at(u.upper,v.upper,hi),c=at(u.lower,v.lower,lo),e=at(u.lower,v.lower,hi),poly=[[[...a],[...b],[...e],[...c],[...a]]];
  if(!terrainPolygons([poly]).length||detailMask.length&&pc.intersection([poly],detailMask).length)continue;
  const panel={a,b,c,d:e,poly,height:pair.height,upperId:pair.upperId,lowerId:pair.lowerId,sourceProperties:pair.properties,absoluteElevationEstimated:true,relativeHeightFromSource:true};if(stepped)panel.topLevel=Math.floor((meshHeight((a[0]+b[0])/2,(a[1]+b[1])/2)-z0)/interval)*interval;
- const wa=nearWater(c),wb=nearWater(e);if(wa.distance<3&&wb.distance<3&&Math.hypot(wa.point[0]-wb.point[0],wa.point[1]-wb.point[1])>1e-4){const connector=[[[...c],[...e],wb.point,wa.point,[...c]]];if(terrainPolygons([connector]).length&&(!detailMask.length||!pc.intersection([connector],detailMask).length)){panel.waterA=wa.point;panel.waterB=wb.point;panel.connectorPoly=connector;}}
+ if(u.water&&v.water){panel.waterA=at(u.water,v.water,lo);panel.waterB=at(u.water,v.water,hi);const connector=[[[...c],[...e],panel.waterB,panel.waterA,[...c]]];if(terrainPolygons([connector]).length&&(!detailMask.length||!pc.intersection([connector],detailMask).length))panel.connectorPoly=connector;}
  sourceBanks.push(panel);
-}
+}}
 const sourceBankMask=unionAll(sourceBanks.flatMap(p=>[[p.poly],...(p.connectorPoly?[[p.connectorPoly]]:[])]));
 if(sourceBankMask.length)for(const name in covers)covers[name]=pc.difference(covers[name],sourceBankMask);
 if(covers['녹지'].length){const builtArea=unionAll(buildings.map(b=>[b.poly]));covers['녹지']=pc.difference(covers['녹지'],covers['도로'],covers['인도'],builtArea);}
@@ -201,14 +201,13 @@ if(riverEstimate&&!stepped){
   const a=ring[i-1],b=ring[i];
   // The selection frame is a model cut, rather than a river bank.
   if([0,1].some(k=>Math.abs(Math.abs(a[k])-(k?h:w)/2)<1e-6&&Math.abs(a[k]-b[k])<1e-6))continue;
-  if(sourceBanks.some(p=>p.waterA&&riverBankCovered(a,b,p.waterA,p.waterB)))continue;
-  const offset=riverBankOffset(a,b,water,cad.covers,cad.terrain);
-  for(const [u,v] of riverBankSegments(a,b,w,h,n)){
+  for(const [lo,hi] of riverBankOpenIntervals(a,b,sourceBanks)){const at=t=>a.map((v,k)=>v+(b[k]-v)*t),A=at(lo),B=at(hi),offset=riverBankOffset(A,B,water,cad.covers,cad.terrain);
+  for(const [u,v] of riverBankSegments(A,B,w,h,n)){
    const at=point(...u,z(...u)+offset),bt=point(...v,z(...v)+offset),ab=point(...u,z0+level),bb=point(...v,z0+level);
    if(Math.abs(at[2]-level)<1e-7&&Math.abs(bt[2]-level)<1e-7)continue;
    tri('대지',at,bt,bb);tri('대지',at,bb,ab);bankFaces+=2;
   }
- }riverEstimate.bankFaces=bankFaces;
+ }}riverEstimate.bankFaces=bankFaces;
 }
 for(const {poly,height,usage,properties,heightEstimated} of buildings){const zs=poly[0].map(p=>z(...p)),base=Math.max(...zs),bottom=Math.min(...zs)-.02,roof=base+height;cad.buildings.push({poly,bottom:bottom-z0,roof:roof-z0,height,usage,properties,heightEstimated});face('건물',poly,()=>roof);face('건물',poly,()=>bottom);for(const r of poly)for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];tri('건물',point(...a,bottom),point(...b,bottom),point(...b,roof));tri('건물',point(...a,bottom),point(...b,roof),point(...a,roof));}}
 if(d.parapet){
