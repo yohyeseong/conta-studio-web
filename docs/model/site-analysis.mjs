@@ -1,5 +1,5 @@
-import {drawBuildingAnalysis,buildingAnalysis} from './site-building-analysis.mjs?v=zip1';
-import {siteDiagram} from './site-diagram.mjs?v=zip1';
+import {drawBuildingAnalysis,buildingAnalysis} from './site-building-analysis.mjs?v=zip3';
+import {siteDiagram} from './site-diagram.mjs?v=zip3';
 export const analyses=[
  ['gis','GIS 전체 자료','확보된 모든 레이어 · 명칭·건물 상세값'],
  ['plan','종합 평면','주변 요소와 선택 영역'],['volume','입체 매스','지형과 건물의 입체 관계'],

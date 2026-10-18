@@ -1,6 +1,6 @@
-import {buildingFields} from './site-building-analysis.mjs?v=zip1';
+import {buildingFields} from './site-building-analysis.mjs?v=zip3';
 import * as THREE from 'three';
-import {analyses,planar,analysisDiagram,diagramTheme} from './site-analysis.mjs?v=zip1';
+import {analyses,planar,analysisDiagram,diagramTheme} from './site-analysis.mjs?v=zip3';
 import {diagramPdf} from './site-pdf.mjs?v=site3';
 import './building-use.js?v=site3';
 import {usageMeshes} from './site-usage-mesh.mjs?v=site3';
