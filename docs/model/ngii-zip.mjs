@@ -1,5 +1,5 @@
 import {polygonizeBoundaries} from './ngii-boundary.mjs?v=curb1';
-// Read only the road/sidewalk members. Large terrain layers are never inflated.
+// B010/B020 share SHP layer codes; retain their original geometry and attributes.
 const decoder=new TextDecoder('utf-8'),overlap=(a,b)=>a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
 const fail=message=>{throw Error(message);};
 async function bytes(blob,start,length){if(start<0||length<0||start+length>blob.size)fail('ZIP 파일의 위치 정보가 손상됐습니다.');return new Uint8Array(await blob.slice(start,start+length).arrayBuffer());}
@@ -42,7 +42,7 @@ export function dbfRecords(b,encoding='utf-8'){
  if(b.length<33)fail('DBF 헤더가 올바르지 않습니다.');const v=view(b),count=v.getUint32(4,true),header=v.getUint16(8,true),size=v.getUint16(10,true),fields=[];let p=32,fieldSize=1;
  if(header>b.length||header<33||size<1||count>1e6||header+count*size>b.length)fail('DBF 레코드 크기가 올바르지 않습니다.');
  let text;try{text=new TextDecoder(encoding.replace(/^65001$/,'utf-8').replace(/^(949|51949|cp949)$/i,'euc-kr'));}catch{fail('지원하지 않는 DBF 문자 인코딩: '+encoding);}
- while(p+32<=header&&b[p]!==13){const name=decoder.decode(b.subarray(p,p+11)).split('\0')[0].toLowerCase(),type=String.fromCharCode(b[p+11]),length=b[p+16];fields.push({name,type,length});fieldSize+=length;p+=32;}
+ while(p+32<=header&&b[p]!==13){const name=text.decode(b.subarray(p,p+11)).split('\0')[0].toLowerCase(),type=String.fromCharCode(b[p+11]),length=b[p+16];fields.push({name,type,length});fieldSize+=length;p+=32;}
  if(b[p]!==13||fieldSize!==size)fail('DBF 필드 정의가 올바르지 않습니다.');
  return Array.from({length:count},(_,i)=>{let at=header+i*size;if(b[at]===42)return null;at++;const result={};for(const f of fields){const raw=text.decode(b.subarray(at,at+f.length)).replace(/\0/g,'').trim();at+=f.length;result[f.name]=['N','F'].includes(f.type)?raw===''?null:Number.isFinite(Number(raw))?Number(raw):null:raw;}return result;});
 }
@@ -79,12 +79,17 @@ export async function importNgiiZip(blob,proj4,onProgress=()=>{},clipping=global
   const cpg=directory.get(stem+'.cpg'),encoding=cpg?decoder.decode(await zipMember(blob,cpg)).trim():'euc-kr',wkt=decoder.decode(await zipMember(blob,prj));let conversion;
   try{conversion=proj4(wkt,'EPSG:4326');}catch{fail(entry.name+'의 좌표계를 읽지 못했습니다.');}
   const records=dbfRecords(await zipMember(blob,dbf),encoding),shapes=shapeRecords(await zipMember(blob,entry),records,p=>conversion.forward(p));let imported=0,skipped=0;
-  for(const f of shapes){const p=f.properties,polygon=f.geometry.type==='MultiPolygon';f.id='ngii/'+stem+'/'+(p.gid||p.ufid||imported+skipped);p.source_layer=entry.name;p.geometry_source='국토정보플랫폼 연속수치지도';p.ngii_import=true;
+  for(const f of shapes){const p=f.properties,polygon=f.geometry.type==='MultiPolygon';
+   // B010 uses Korean DBF field names; B020 uses abbreviated English names.
+   // Preserve originals for GIS diagrams and add common aliases for generation.
+   for(const [field,alias] of Object.entries({'명칭':'name','주기':'anno','층수':'nmly','폭':'widt','높이':'height','도로명':'addr:street','건물본번':'addr:housenumber','용도':'building:use:original'}))if(p[field]!==undefined&&p[alias]===undefined)p[alias]=p[field];
+   const usage=String(p['용도']||'');
+   if(usage)p['building:use']=/주거|주택|아파트/.test(usage)?'residential':/교육|학교/.test(usage)?'school':/의료|병원/.test(usage)?'hospital':/상업|업무|판매|숙박/.test(usage)?'commercial':/공업|산업|공장|창고/.test(usage)?'industrial':/공공|문화|종교/.test(usage)?'public':'other';f.id='ngii/'+stem+'/'+(p.gid||p.ufid||imported+skipped);p.source_layer=entry.name;p.geometry_source='국토정보플랫폼 수치지도';p.ngii_import=true;
    const label=({A001:'도로경계',A002:'도로중심선',A003:'인도경계',A004:'횡단보도',A005:'안전지대',A006:'육교',A007:'교량',A008:'교차로',A009:'입체교차부',A016:'철도경계',A017:'철도중심선',B001:'건물경계',B002:'담장',F001:'원본 등고선',H001:'행정경계'})[code]||code;
    const coordinates=polygon?f.geometry.coordinates.flat():f.geometry.coordinates;
    sourceLines.push({...f,geometry:{type:'MultiLineString',coordinates},properties:{...p,source_line_layer:'원본 선 · '+label}});
    if(code==='B001'&&polygon){
-    p.ngii_kind='building';p.building=({BDK001:'house',BDK002:'residential',BDK003:'apartments',BDK005:'roof'})[p.kind]||'yes';const levels=Number(p.nmly);if(levels>0&&levels<1000)p['building:levels']=levels;
+    p.ngii_kind='building';p.building=({BDK001:'house',BDK002:'residential',BDK003:'apartments',BDK005:'roof'})[p.kind]||({'일반주택':'house','공동주택':'residential','아파트':'apartments','무벽건물':'roof'})[p['종류']]||'yes';const levels=Number(p.nmly);if(levels>0&&levels<1000)p['building:levels']=levels;
     const height=Number(p.height??p.heig??p.buld_hght);if(height>0&&height<2000)p.height=height;else delete p.height;
     p.name=p.name||p.anno||'';buildingFeatures.push(f);imported++;
    }
@@ -133,6 +138,6 @@ export async function importNgiiZip(blob,proj4,onProgress=()=>{},clipping=global
  if(ambiguousFaces)warnings.push('인도로 확인되지 않은 닫힌 영역 '+ambiguousFaces+'개는 면을 만들지 않았습니다.');
  if(remainingOpen)warnings.push('닫히지 않은 인도 경계 '+remainingOpen+'구간은 면을 만들지 않았습니다.');
  const crosswalks=sourceLines.filter(f=>f.properties.source_line_layer==='원본 선 · 횡단보도').length;
- onProgress('도로·인도 좌표 변환 완료',100);return {features,roadLayerPresent,buildingFeatures,buildingLayerPresent:summary.some(s=>s.code==='B001'),references,sourceLines,crosswalks,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-curb1'};
+ onProgress('도로·인도 좌표 변환 완료',100);return {features,roadLayerPresent,buildingFeatures,buildingLayerPresent:summary.some(s=>s.code==='B001'),references,sourceLines,crosswalks,bbox,summary,warnings,boundaryStats,roads:features.filter(f=>f.properties.ngii_kind==='road').length,sidewalks:features.filter(f=>f.properties.ngii_kind==='sidewalk').length,version:'ngii-b010-1'};
 }
 export const featuresForBounds=(dataset,bounds,sidewalks=true)=>({...dataset,buildingFeatures:(dataset.buildingFeatures||[]).filter(f=>overlap(f.bbox,bounds)),features:dataset.features.filter(f=>overlap(f.bbox,bounds)&&(sidewalks||f.properties.ngii_kind!=='sidewalk')),references:dataset.references.filter(f=>overlap(f.bbox,bounds)),sourceLines:(dataset.sourceLines||[]).filter(f=>overlap(f.bbox,bounds))});
