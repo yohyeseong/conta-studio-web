@@ -1,9 +1,38 @@
 {
- "name":"conta-vworld-proxy",
- "main":"vector-worker.mjs",
- "compatibility_date":"2026-10-02",
- "workers_dev":true,
- "observability":{"enabled":false},
- "vars":{"ALLOWED_ORIGIN":"https://yohyeseong.github.io"},
- "ratelimits":[{"name":"TILE_LIMITER","namespace_id":"1001","simple":{"limit":240,"period":60}}]
+  "name": "conta-vworld-proxy",
+  "main": "vector-worker.mjs",
+  "compatibility_date": "2026-10-02",
+  "workers_dev": true,
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "ALLOWED_ORIGIN": "https://yohyeseong.github.io"
+  },
+  "ratelimits": [
+    {
+      "name": "TILE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 240,
+        "period": 60
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VWORLD_KEY_STORE",
+        "class_name": "VworldKeyStore"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "vworld-key-store-v1",
+      "new_sqlite_classes": [
+        "VworldKeyStore"
+      ]
+    }
+  ]
 }

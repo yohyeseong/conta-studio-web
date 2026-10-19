@@ -1,3 +1,4 @@
+import {getVworldKey} from './key-store.mjs';
 const DATASETS={buildings:'LT_C_SPBD',roads:'LT_L_SPRD'};
 const UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
 export default {
@@ -10,7 +11,7 @@ export default {
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, OPTIONS'}});
   if(request.method!=='GET')return fail(405,'GET required');
   const url=new URL(request.url);
-  if(url.pathname==='/health')return reply(200,{ready:!!env.VWORLD_API_KEY,mode:'data',datasets:Object.keys(DATASETS)});
+  if(url.pathname==='/health')return reply(200,{ready:!!(await getVworldKey(env)),mode:'data',datasets:Object.keys(DATASETS)});
   const kind=url.pathname.split('/')[2];
   if(url.pathname!=='/data/'+kind||!DATASETS[kind])return fail(404,'Unknown dataset');
   if([...url.searchParams.keys()].some(k=>!['bbox','page'].includes(k)))return fail(400,'Unsupported parameter');
@@ -20,9 +21,8 @@ export default {
   if(w<124||s<33||e>132||n>39||w>=e||s>=n)return fail(400,'Invalid Korean bounds');
   const width=(e-w)*111319.49*Math.cos((s+n)/2*Math.PI/180),height=(n-s)*111319.49;
   if(width>3000||height>3000||width*height>4e6)return fail(400,'Region too large');
-  if(!env.VWORLD_API_KEY?.trim())return fail(503,'Data service not configured');
+  const key=await getVworldKey(env);if(!key)return fail(503,'Data service not configured');
   if(env.TILE_LIMITER){const limit=await env.TILE_LIMITER.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'});if(!limit.success)return fail(429,'Please retry later');}
-  const key=env.VWORLD_API_KEY.trim();
   const params=new URLSearchParams({service:'data',version:'2.0',request:'GetFeature',format:'json',size:'1000',page:String(page),data:DATASETS[kind],geometry:'true',attribute:'true',crs:'EPSG:4326',geomFilter:'BOX('+bounds.join(',')+')',domain:allowed,key});
   try{
    const direct='https://api.vworld.kr/req/data?'+params,urls=[direct,'https://map.vworld.kr/proxy.do?url='+encodeURIComponent(direct)];

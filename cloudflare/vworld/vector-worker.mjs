@@ -1,3 +1,5 @@
+import {getVworldKey,configureKey} from './key-store.mjs';
+export {VworldKeyStore} from './key-store.mjs';
 import dataWorker from './data-worker.mjs';
 const ORIGIN='https://yohyeseong.github.io';
 const headers={'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
@@ -16,15 +18,16 @@ async function providerFetch(url,options){
 }
 export default {async fetch(request,env){
  const u=new URL(request.url);
+ if(u.pathname==='/configure-key')return configureKey(request,env);
  if(!u.pathname.startsWith('/vector/'))return dataWorker.fetch(request,env);
  if(request.headers.get('Origin')!==ORIGIN)return fail(403,'Site not allowed');
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, OPTIONS'}});
  if(request.method!=='GET'||u.search)return fail(400,'Unsupported vector request');
- if(!env.VWORLD_API_KEY?.trim())return fail(503,'VWorld credential not configured');
+ const key=await getVworldKey(env);if(!key)return fail(503,'VWorld credential not configured');
  const tile=/^\/vector\/(poi|traffic)\/(\d{1,2})\/(\d{1,6})\/(\d{1,6})\.pbf$/.exec(u.pathname);
  const style=/^\/vector\/style\/(poi|traffic)$/.exec(u.pathname);
  if(!tile&&!style)return fail(404,'Unknown vector request');
- const key=env.VWORLD_API_KEY.trim();let url;
+ let url;
  if(tile){
   const kind=tile[1],[z,x,y]=tile.slice(2).map(Number),size=2**z;
   const lon=v=>v/size*360-180,lat=v=>Math.atan(Math.sinh(Math.PI*(1-2*v/size)))*180/Math.PI;

@@ -19,6 +19,7 @@ jobs:
           node-version: '22'
       - run: node cloudflare/vworld/data-test.mjs
       - run: node --test cloudflare/vworld/vector-test.mjs
+      - run: node --test cloudflare/vworld/key-store-test.mjs
   deploy:
     needs: verify
     runs-on: ubuntu-latest
