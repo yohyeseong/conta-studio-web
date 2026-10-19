@@ -2,7 +2,7 @@ name: Test automatic VWorld area acquisition
 on:
   push:
     branches: [codex/vworld-auto-area-test]
-    paths: ['diagnostics/auto-area-check.py', '.github/workflows/auto-area-check.yml']
+    paths: ['diagnostics/auto-area-check.py', 'diagnostics/browser-area-check.cjs', '.github/workflows/auto-area-check.yml']
 permissions:
   contents: read
 jobs:
@@ -15,6 +15,17 @@ jobs:
         env:
           VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
         run: python diagnostics/auto-area-check.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated browser
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Test registered-site browser requests
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: node diagnostics/browser-area-check.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
