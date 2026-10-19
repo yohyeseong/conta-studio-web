@@ -6,6 +6,7 @@ function buildRhinoFile(rhino,items,scale,cad){
  try{
   doc.applicationName='Conta Studio Web';doc.applicationUrl='https://yohyeseong.github.io/conta-studio-web/model/';
   doc.startSectionComments='Ministry of Land, Infrastructure and Transport GIS integrated building information, VWorld (2026-09-09), official footprints/heights/floors prioritized; OSM contributors / ODbL 1.0; Republic of Korea Ministry of Land standard node/link roads (2026-09-14); Copernicus GLO-30 DSM: Produced using Copernicus WorldDEM-30; copyright DLR e.V. 2010-2014 and Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. Other regions: Mapzen/AWS, USGS, NOAA. Estimated context model.';
+  if(cad.verifiedRoadAreas?.state==='applied')doc.startSectionComments+=' Verified road coverage: '+cad.verifiedRoadAreas.regions.map(r=>r.id).join(',')+'; VWorld traffic zoom18 vl_rodway_bndry_1518, tile polygons joined and clipped. Uploaded source geometry takes priority. No WFS detail acquisition is implied.';
   doc.settings().modelUnitSystem=rhino.UnitSystem.Millimeters;doc.settings().modelAbsoluteTolerance=0.001;
   const factor=1000/scale;let expected=0;const brepIndices=new Set(),solidIndices=new Set();
   for(const item of items){

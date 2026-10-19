@@ -1,5 +1,5 @@
 /* Geometry runs off the UI thread. Source slopes are retained. */
-importScripts('source-terrain.js?v=source3','detail-mask.js?v=riverbank1','river-banks.js?v=source3','river-elevation.js?v=source3','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
+importScripts('verified-road-areas.js?v=verified1','source-terrain.js?v=source3','detail-mask.js?v=riverbank1','river-banks.js?v=source3','river-elevation.js?v=source3','crosswalk-stripes.js?v=roadlines1','surface-volume.js?v=curb1','ngii-roads.js?v=riverbank1','building-use.js?v=site3','vendor/earcut.min.js','vendor/polygon-clipping.js','military-policy.js?v=riverbank1','terrain-surface.js?v=official1');
 let activeRequestId;const report=value=>postMessage({id:activeRequestId,...value});
 const rounded=(value,scale)=>Array.isArray(value)?value.map(v=>rounded(v,scale)):Math.round(value*scale)/scale;
 const pc=Object.fromEntries(['union','difference','intersection'].map(name=>[name,(...args)=>{
@@ -61,6 +61,7 @@ if(d.localRoads?.buildingLayerPresent){
  counts['건물']=buildings.length;
  report({progress:64,message:'업로드한 파일의 건물 '+importedBuildings+'개 적용 중'});
 }
+const verifiedRoadAreas=applyVerifiedRoadAreas(d.verifiedRoads,{pc,unionAll,xy,rect,covers,gisFeatures});
 const importedRoads=applyNgiiRoads(d.localRoads,{pc,unionAll,bufferLine,xy,rect,covers,gisFeatures,roadLines:!!d.roadLines,crosswalkStripes});
 // Preserve source XY lines as curves, clipped to the model, without width buffers.
 // Elevations are draped on the generated terrain; they are not survey Z values.
@@ -103,6 +104,7 @@ if(detailMask.length){
  counts['건물']=buildings.length;if(importedBuildings!==null)importedBuildings=buildings.filter(b=>b.properties.ngii_import).length;
 }
 
+if(verifiedRoadAreas.state==='applied')counts['도로']=covers['도로'].length;
 if(importedRoads){counts['도로']=covers['도로'].length;counts['인도']=covers['인도'].length;counts['횡단보도']=covers['횡단보도'].length;}
 const sourceBanks=[];
 function segmentBounds(a,b){let lo=0,hi=1;const vx=b[0]-a[0],vy=b[1]-a[1];for(const [p,q] of [[-vx,a[0]+w/2],[vx,w/2-a[0]],[-vy,a[1]+h/2],[vy,h/2-a[1]]]){if(Math.abs(p)<1e-12){if(q<0)return null;continue;}const t=q/p;if(p<0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}return hi-lo>1e-8?[lo,hi]:null;}
@@ -137,7 +139,7 @@ if(riverEstimate){if(!riverEstimate.surfaces.length)throw Error('선택 영역�
 const mask=unionAll([...Object.entries(covers).filter(([name])=>name!=='철도').map(([,polys])=>polys),sourceBankMask]),ground=d.cutGround!==false&&mask.length?pc.difference(rect,mask):[rect];
 const groundDepth=.2;
 const sidewalkVolume=!!d.sidewalkVolume&&covers['인도'].length>0,sidewalkDepth=.2;
-const cad={gisFeatures,sourceTerrain:sourceTerrain?{contours:sourceTerrain.contours,spots:sourceTerrain.spots,method:sourceTerrain.method,estimatedBetweenReferences:true}:null,sourceBanks,detailExclusions:detailBoxes,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{groundDepth,sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
+const cad={verifiedRoadAreas,gisFeatures,sourceTerrain:sourceTerrain?{contours:sourceTerrain.contours,spots:sourceTerrain.spots,method:sourceTerrain.method,estimatedBetweenReferences:true}:null,sourceBanks,detailExclusions:detailBoxes,riverEstimate,roadMarkings:{enabled:!!d.roadLines,provisional:true,source:'source-crosswalk-boundary',stripeWidth:.5,gap:.5},terrain:{groundDepth,sidewalkVolume,sidewalkDepth,w,h,count:surface.count,points:surface.points,polygons:terrainPolygons(ground),base:-baseDepth,lowerStep:!!d.lowerStep,interval},parapets:[],covers:Object.fromEntries(Object.entries(covers).map(([name,polys])=>[name,terrainPolygons(polys)])),buildings:[]};
 cad.covers['원본 석축']=sourceBankMask;
 if(riverEstimate){riverEstimate.banksConnected=!stepped;riverEstimate.bankCovers=cad.covers;riverEstimate.sourceBanks=sourceBanks;covers['하천']=riverEstimate.regularPolygons||[];}
 if(stepped)cad.terrain.bands=makeSteps();
