@@ -58,8 +58,8 @@ export default {async fetch(request,env){
   const key=await apiKey(env);if(!key)return json({error:'Map service not configured'},503);
   const air=kind==='air',upstream=new URL(air?'https://map.ngii.go.kr/airmapprime/map/wmts':'https://map.ngii.go.kr/openapi/Gettile.do');
   upstream.search=new URLSearchParams({SERVICE:'WMTS',REQUEST:'GetTile',VERSION:'1.0.0',LAYER:air?'mapprime:air_'+await latestAirYear():{normal:'korean_map',white:'white_map',satellite:'satellite_map'}[kind],STYLE:air?'':'korean',FORMAT:air?'image/jpeg':'image/png',TILEMATRIXSET:air?'NGIS_AIR':'EPSG:5179',TILEMATRIX:air?String(z):'L'+String(z).padStart(2,'0'),TILEROW:String(row),TILECOL:String(col),...(air?{}:{apikey:key})});
-  const r=await fetch(upstream,{headers:{Referer:REGISTERED_URL,Accept:'image/png,image/jpeg'},redirect:'manual',signal:AbortSignal.timeout(15000)});
-  if(!r.ok)return json({error:'Map provider unavailable'},502);
+  const r=await fetch(upstream,{headers:{Referer:REGISTERED_URL,Accept:'image/png,image/jpeg','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'},redirect:'manual',signal:AbortSignal.timeout(15000)});
+  if(!r.ok)return json({error:'Map provider unavailable',upstreamStatus:r.status},502);
   const bytes=new Uint8Array(await r.arrayBuffer());
   const png=[137,80,78,71,13,10,26,10].every((v,i)=>bytes[i]===v),jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
   if(bytes.length<100||bytes.length>2097152||!png&&!jpeg)return json({error:'Invalid map image'},502);
