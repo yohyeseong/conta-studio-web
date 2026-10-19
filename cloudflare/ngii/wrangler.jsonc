@@ -1,0 +1,10 @@
+{
+ "name":"conta-ngii-map",
+ "main":"worker.mjs",
+ "compatibility_date":"2026-10-19",
+ "workers_dev":true,
+ "observability":{"enabled":false},
+ "durable_objects":{"bindings":[{"name":"KEY_STORE","class_name":"NgiiKeyStore"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["NgiiKeyStore"]}],
+ "ratelimits":[{"name":"TILE_LIMITER","namespace_id":"1019","simple":{"limit":240,"period":60}}]
+}

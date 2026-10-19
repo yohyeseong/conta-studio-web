@@ -1,0 +1,26 @@
+name: NGII public visitor map
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/ngii/**', '.github/workflows/ngii-map.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ngii-map
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test cloudflare/ngii/test.mjs
+      - name: Deploy map service
+        run: npx --yes wrangler@4 deploy --config cloudflare/ngii/wrangler.jsonc

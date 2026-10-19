@@ -1,0 +1,2 @@
+export const BOOTSTRAP_HASH="80f2a4e04cd63942ceb7edddab1b503688766daa3e90d3a8fad3370bd2d4c2ab";
+export const BOOTSTRAP_UNTIL=1792387170914;
