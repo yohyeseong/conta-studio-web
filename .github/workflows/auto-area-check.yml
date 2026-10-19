@@ -1,0 +1,23 @@
+name: Test automatic VWorld area acquisition
+on:
+  push:
+    branches: [codex/vworld-auto-area-test]
+    paths: ['diagnostics/auto-area-check.py', '.github/workflows/auto-area-check.yml']
+permissions:
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read public area data with the existing server key
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: python diagnostics/auto-area-check.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: buseong1-automatic-area-check
+          path: area-results/
+          retention-days: 7
