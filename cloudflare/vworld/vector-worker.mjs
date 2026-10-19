@@ -1,7 +1,19 @@
 import dataWorker from './data-worker.mjs';
 const ORIGIN='https://yohyeseong.github.io';
 const headers={'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
-const fail=(status,error)=>Response.json({error},{status,headers});
+const fail=(status,error,detail={})=>Response.json({error,...detail},{status,headers});
+async function providerFetch(url,options){
+ let response,lastError;
+ for(let attempt=1;attempt<=3;attempt++){
+  try{
+   response=await fetch(url,{...options,signal:AbortSignal.timeout(8000)});
+   if(![500,502,503,504,520,521,522,523,524,525,526].includes(response.status)||attempt===3)return {response,attempts:attempt};
+   await response.body?.cancel();
+  }catch(error){lastError=error;if(attempt===3)return {response:null,attempts:attempt,errorType:error?.name||'ConnectionError'};}
+  await new Promise(resolve=>setTimeout(resolve,attempt===1?300:900));
+ }
+ return {response,attempts:3,errorType:lastError?.name};
+}
 export default {async fetch(request,env){
  const u=new URL(request.url);
  if(!u.pathname.startsWith('/vector/'))return dataWorker.fetch(request,env);
@@ -22,8 +34,9 @@ export default {async fetch(request,env){
  }else url='https://api.vworld.kr/req/wmts/vector/getStyle/'+encodeURIComponent(key)+'/'+(style[1]==='poi'?'vectorStylePoi':'vectorStyleTraffic');
  if(env.TILE_LIMITER&&!((await env.TILE_LIMITER.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'})).success))return fail(429,'Please retry later');
  try{
-  const r=await fetch(url,{headers:{Referer:ORIGIN+'/conta-studio-web/model/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',Accept:style?'application/json':'application/x-protobuf,application/octet-stream'},redirect:'manual',signal:AbortSignal.timeout(20000)});
-  if(!r.ok)return fail(502,'VWorld vector provider HTTP '+r.status);
+  const {response:r,attempts}=await providerFetch(url,{headers:{Referer:ORIGIN+'/conta-studio-web/model/','User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',Accept:style?'application/json':'application/x-protobuf,application/octet-stream'},redirect:'manual'});
+  if(!r)return fail(502,'VWorld vector provider connection failed',{attempts});
+  if(!r.ok)return fail(502,'VWorld vector provider HTTP '+r.status,{attempts});
   const bytes=new Uint8Array(await r.arrayBuffer());if(bytes.length>12000000)return fail(502,'Vector response too large');
   if(!bytes.length)return new Response(null,{status:204,headers});
   const text=new TextDecoder().decode(bytes);

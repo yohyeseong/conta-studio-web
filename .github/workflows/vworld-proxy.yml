@@ -75,6 +75,10 @@ jobs:
         env:
           VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
         run: python cloudflare/vworld/direct-check.py
+      - name: Compare HTTP protocols and bounded retries
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: python cloudflare/vworld/protocol-check.py
       - name: Check vector provider responses
         run: |
           python - <<'PY'
