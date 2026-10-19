@@ -18,6 +18,7 @@ jobs:
         with:
           node-version: '22'
       - run: node cloudflare/vworld/data-test.mjs
+      - run: node --test cloudflare/vworld/vector-test.mjs
   deploy:
     needs: verify
     runs-on: ubuntu-latest
@@ -70,45 +71,34 @@ jobs:
           PY
       - name: Deploy private data proxy
         run: npx --yes wrangler@4 deploy --config cloudflare/vworld/wrangler.jsonc --secrets-file "$RUNNER_TEMP/vworld-worker-secrets.json"
-      - name: Verify private vector data
+      - name: Check vector provider responses
         run: |
           python - <<'PY'
-          import pathlib,urllib.request,urllib.error,time,json
+          import pathlib,urllib.request,urllib.error,json
           base=pathlib.Path('proxy-url.txt').read_text().strip()
-          headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36'}
-          report={'proxy':base,'mode':'data','layers':{}}
-          for attempt in range(3):
+          headers={'Origin':'https://yohyeseong.github.io','User-Agent':'Mozilla/5.0'}
+          with urllib.request.urlopen(urllib.request.Request(base+'/health',headers=headers),timeout=20) as r:
+              assert json.load(r).get('ready'),'VWorld key not configured'
+          report={'proxy':base,'results':[]}
+          for path in ['/vector/style/traffic','/vector/style/poi','/vector/traffic/11/1746/793.pbf','/vector/poi/11/1746/793.pbf']:
               try:
-                  with urllib.request.urlopen(urllib.request.Request(base+'/health',headers=headers),timeout=20) as r:
-                      health=json.load(r)
-                      if not health.get('ready') or health.get('mode')!='data':raise RuntimeError('Data service not ready')
-                  print('PRIVATE_DATA_PROXY_HEALTH_READY')
-                  for kind in ['buildings','roads']:
-                      path='/data/'+kind+'?bbox=126.978,37.565,126.980,37.567'
-                      with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers),timeout=25) as r:data=json.load(r)
-                      if data.get('type')!='FeatureCollection':raise RuntimeError('Invalid vector response')
-                      features=data['features']
-                      report['layers'][kind]={'count':len(features),'total':data.get('total'),'geometryTypes':sorted(set(f['geometry']['type'] for f in features)),'fields':sorted(set(k for f in features for k in (f.get('properties') or {})))}
-                  pathlib.Path('vworld-data-validation.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
-                  print('VWORLD_DATA_VERIFIED '+json.dumps(report,ensure_ascii=False))
-                  break
+                  with urllib.request.urlopen(urllib.request.Request(base+path,headers=headers),timeout=30) as r:
+                      raw=r.read(12000001);item={'path':path,'http':r.status,'bytes':len(raw),'vector':path.endswith('.pbf') and raw[:1]==bytes([26])}
+                      if '/style/' in path:item['jsonFields']=list(json.loads(raw))[:20]
               except urllib.error.HTTPError as e:
-                  try:reason=json.load(e).get('error','unknown')
-                  except:reason='Non-JSON error'
-                  print('Data HTTP diagnostic:',e.code,reason)
-                  if attempt==2:raise SystemExit('VWorld data verification failed')
-                  time.sleep(5)
-              except Exception as e:
-                  if attempt==2:raise SystemExit('Data verification failed: '+str(e))
-                  time.sleep(5)
+                  item={'path':path,'http':e.code,'message':e.read(300).decode(errors='replace')}
+              except Exception as e:item={'path':path,'errorType':type(e).__name__}
+              report['results'].append(item)
+          pathlib.Path('vworld-vector-check.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+          print(json.dumps(report,ensure_ascii=False))
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vworld-data-validation
+          name: vworld-vector-check
           path: |
             proxy-url.txt
-            vworld-data-validation.json
+            vworld-vector-check.json
       - name: Remove temporary secret
         if: always()
         run: rm -f -- "$RUNNER_TEMP/vworld-worker-secrets.json"
