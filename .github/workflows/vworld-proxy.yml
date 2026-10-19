@@ -71,6 +71,10 @@ jobs:
           PY
       - name: Deploy private data proxy
         run: npx --yes wrangler@4 deploy --config cloudflare/vworld/wrangler.jsonc --secrets-file "$RUNNER_TEMP/vworld-worker-secrets.json"
+      - name: Compare direct VWorld requests from the runner
+        env:
+          VWORLD_API_KEY: ${{ secrets.VWORLD_API_KEY }}
+        run: python cloudflare/vworld/direct-check.py
       - name: Check vector provider responses
         run: |
           python - <<'PY'
@@ -99,6 +103,7 @@ jobs:
           path: |
             proxy-url.txt
             vworld-vector-check.json
+            vworld-direct-results/
       - name: Remove temporary secret
         if: always()
         run: rm -f -- "$RUNNER_TEMP/vworld-worker-secrets.json"
